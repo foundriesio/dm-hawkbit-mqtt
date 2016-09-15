@@ -1,3 +1,5 @@
+/* https://github.com/zserge/jsmn - MIT License */
+
 #ifndef __JSMN_H_
 #define __JSMN_H_
 

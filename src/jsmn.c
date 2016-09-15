@@ -1,3 +1,5 @@
+/* https://github.com/zserge/jsmn - MIT License */
+
 #include "jsmn.h"
 
 /**
