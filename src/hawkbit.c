@@ -660,6 +660,12 @@ int hawkbit_ddi_poll(struct net_context *context)
 					     HAWKBIT_RESULT_SUCCESS,
 					     HAWKBIT_EXEC_CLOSED);
 		return 0;
+	} else if (boot_acid_read(BOOT_ACID_UPDATE) == hawkbit_acid) {
+		/* There was already an atempt, so announce a failure */
+		hawkbit_report_update_status(context, hawkbit_acid,
+					     HAWKBIT_RESULT_FAILURE,
+					     HAWKBIT_EXEC_CLOSED);
+		return 0;
 	}
 
 	/* Perform the action */
