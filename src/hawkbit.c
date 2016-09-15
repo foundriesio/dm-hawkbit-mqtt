@@ -66,6 +66,15 @@ typedef enum {
 	HAWKBIT_RESULT_NONE,
 } hawkbit_result_status_t;
 
+typedef enum {
+	HAWKBIT_EXEC_CLOSED = 0,
+	HAWKBIT_EXEC_PROCEEDING,
+	HAWKBIT_EXEC_CANCELED,
+	HAWKBIT_EXEC_SCHEDULED,
+	HAWKBIT_EXEC_REJECTED,
+	HAWKBIT_EXEC_RESUMED,
+} hawkbit_exec_status_t;
+
 /* Utils */
 static int atoi_n(const char *s, int len)
 {
@@ -284,7 +293,7 @@ static int hawkbit_query(struct net_context *context, uint8_t *tcp_buf,
 		return -EINVAL;
 	}
 
-	OTA_DBG("\n%s", tcp_buf);
+	OTA_DBG("\n%s\n", tcp_buf);
 
 	ret = tcp_send(context, (const char *) tcp_buf, strlen(tcp_buf));
 	if (ret < 0) {
@@ -368,12 +377,14 @@ static int hawkbit_report_config_data(struct net_context *context)
 }
 
 static int hawkbit_report_update_status(struct net_context *context, int acid,
-					hawkbit_result_status_t status)
+					hawkbit_result_status_t status,
+					hawkbit_exec_status_t exec)
 {
 	char finished[8];	/* 'success', 'failure', 'none' */
+	char execution[11];
 	char *helper;
 
-	switch(status) {
+	switch (status) {
 	case HAWKBIT_RESULT_SUCCESS:
 		snprintf(finished, sizeof(finished), "success");
 		break;
@@ -382,6 +393,30 @@ static int hawkbit_report_update_status(struct net_context *context, int acid,
 		break;
 	case HAWKBIT_RESULT_NONE:
 		snprintf(finished, sizeof(finished), "none");
+		break;
+	}
+
+	/* 'closed', 'proceeding', 'canceled', 'scheduled',
+	 * 'rejected', 'resumed'
+	 */
+	switch (exec) {
+	case HAWKBIT_EXEC_CLOSED:
+		snprintf(execution, sizeof(execution), "closed");
+		break;
+	case HAWKBIT_EXEC_PROCEEDING:
+		snprintf(execution, sizeof(execution), "proceeding");
+		break;
+	case HAWKBIT_EXEC_CANCELED:
+		snprintf(execution, sizeof(execution), "canceled");
+		break;
+	case HAWKBIT_EXEC_SCHEDULED:
+		snprintf(execution, sizeof(execution), "scheduled");
+		break;
+	case HAWKBIT_EXEC_REJECTED:
+		snprintf(execution, sizeof(execution), "rejected");
+		break;
+	case HAWKBIT_EXEC_RESUMED:
+		snprintf(execution, sizeof(execution), "resumed");
 		break;
 	}
 
@@ -396,8 +431,8 @@ static int hawkbit_report_update_status(struct net_context *context, int acid,
 			"\"id\":\"%d\","
 			"\"status\":{"
 				"\"result\":{\"finished\":\"%s\"},"
-				"\"execution\":\"closed\"}"
-			"}", acid, finished);
+				"\"execution\":\"%s\"}"
+			"}", acid, finished, execution);
 
 	/* BUF_SIZE / 2 should be enough for the header */
 	snprintf(tcp_buf, BUF_SIZE,
@@ -622,7 +657,8 @@ int hawkbit_ddi_poll(struct net_context *context)
 	if (boot_acid_read(BOOT_ACID_CURRENT) == hawkbit_acid) {
 		/* We are coming from a successful flash, update the server */
 		hawkbit_report_update_status(context, hawkbit_acid,
-					HAWKBIT_RESULT_SUCCESS);
+					     HAWKBIT_RESULT_SUCCESS,
+					     HAWKBIT_EXEC_CLOSED);
 		return 0;
 	}
 
@@ -634,19 +670,24 @@ int hawkbit_ddi_poll(struct net_context *context)
 	/* Error detected when parsing the SM */
 	if (ret == -1) {
 		hawkbit_report_update_status(context, hawkbit_acid,
-				HAWKBIT_RESULT_FAILURE);
+					     HAWKBIT_RESULT_FAILURE,
+					     HAWKBIT_EXEC_CLOSED);
 		return -1;
 	}
 	if (file_size > FLASH_BANK_SIZE) {
 		OTA_ERR("Artifact file size too big (%d)\n", file_size);
 		hawkbit_report_update_status(context, hawkbit_acid,
-					HAWKBIT_RESULT_FAILURE);
+					     HAWKBIT_RESULT_FAILURE,
+					     HAWKBIT_EXEC_CLOSED);
 		return -1;
 	}
 
 	/* Here we should have everything we need to apply the action */
 	OTA_INFO("Valid action ID %d found, proceeding with the update\n",
 					hawkbit_acid);
+	hawkbit_report_update_status(context, hawkbit_acid,
+				     HAWKBIT_RESULT_SUCCESS,
+				     HAWKBIT_EXEC_PROCEEDING);
 	ret = hawkbit_install_update(context, (uint8_t *) &tcp_buf,
 					download_http, file_size);
 	if (ret != 0) {
