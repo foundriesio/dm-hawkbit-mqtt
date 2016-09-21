@@ -23,18 +23,44 @@
 #define FLASH_BANK_SIZE		(232 * 1024)
 #define FLASH_STATE_OFFSET	0x0007d000
 #define FLASH_STATE_SIZE	(12 * 1024)
+#elif defined(CONFIG_SOC_STM32F401RE)
+#define FLASH_DRIVER_NAME	"STM32F4_FLASH"
+#define FLASH_BANK0_OFFSET	0x00020000
+#define FLASH_BANK1_OFFSET	0x00040000
+#define FLASH_BANK_SIZE		(128 * 1024)
+#define FLASH_STATE_OFFSET	0x00008000
+#define FLASH_STATE_SIZE	(32 * 1024)
 #endif
 
 /* GPIO */
-#if defined(CONFIG_SOC_FAMILY_NRF5)
-#define GPIO_DRV_NAME	"GPIO_0"
-#endif
 #if defined(CONFIG_BOARD_NRF52_PCA10040)
 #define LED1_GPIO	17
 #define LED2_GPIO	18
 #elif defined(CONFIG_BOARD_NRF52_NITROGEN)
 #define LED1_GPIO	29
 #define LED2_GPIO	28
+#elif defined(CONFIG_BOARD_NUCLEO_F401RE)
+#define LED1_GPIO	2
+#define LED2_GPIO	3
+#elif defined(CONFIG_BOARD_96B_CARBON)
+#define LED1_GPIO	15
+#define LED2_GPIO	5
+#endif
+
+/* LED */
+#define LED_BLINK	LED1_GPIO
+
+/* GPIO Driver */
+#if defined(CONFIG_SOC_FAMILY_NRF5)
+#define GPIO_DRV_NAME	"GPIO_0"
+#elif defined(CONFIG_BOARD_NUCLEO_F401RE)
+#define GPIO_DRV_NAME	"GPIOC"
+#elif defined(CONFIG_BOARD_96B_CARBON)
+#if (LED_BLINK == LED1_GPIO)
+#define GPIO_DRV_NAME   "GPIOA"
+#else
+#define GPIO_DRV_NAME   "GPIOB"
+#endif
 #endif
 
 /* Bluetooth */

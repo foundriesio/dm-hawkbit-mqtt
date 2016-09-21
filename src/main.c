@@ -139,8 +139,6 @@ static void fota_service(void)
 	} while (1);
 }
 
-#define LED_BLINK	LED1_GPIO
-
 void blink_led(void)
 {
 	uint32_t cnt = 0;
