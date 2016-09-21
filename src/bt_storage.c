@@ -26,6 +26,7 @@
 #include <bluetooth/storage.h>
 
 #include <soc.h>
+#include <tc_util.h>
 
 /* Any by default, can change depending on the hardware implementation */
 static bt_addr_le_t bt_addr;
@@ -95,6 +96,8 @@ int bt_storage_init(void)
 	bt_storage_register(&storage);
 
 	printk("Bluetooth storage driver registered\n");
+
+	TC_END_RESULT(TC_PASS);
 
 	return 0;
 }

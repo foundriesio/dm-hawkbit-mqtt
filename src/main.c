@@ -37,6 +37,8 @@
 
 #include <soc.h>
 
+#include <tc_util.h>
+
 /* Local helpers and functions */
 #include "bt_storage.h"
 #include "bt_ipss.h"
@@ -100,12 +102,16 @@ static void fota_service(void)
 				    &my_addr, 0);
 	if (!context) {
 		OTA_ERR("Failed to get network context\n");
+		TC_END_RESULT(TC_FAIL);
+		TC_END_REPORT(TC_FAIL);
 		return;
 	}
 
 	flash_dev = device_get_binding(FLASH_DRIVER_NAME);
 	if (!flash_dev) {
 		OTA_ERR("Failed to find the flash driver\n");
+		TC_END_RESULT(TC_FAIL);
+		TC_END_REPORT(TC_FAIL);
 		return;
 	}
 
@@ -117,6 +123,8 @@ static void fota_service(void)
 		}
 		boot_status_update();
 	}
+
+	TC_END_RESULT(TC_PASS);
 
 	do {
 		fiber_sleep(poll_sleep);
@@ -144,6 +152,10 @@ void blink_led(void)
 	while (1) {
 		gpio_pin_write(gpio, LED_BLINK, cnt % 2);
 		task_sleep(SECONDS(1));
+                if (cnt == 1) {
+                        TC_END_RESULT(TC_PASS);
+                        TC_END_REPORT(TC_PASS);
+                }
 		cnt++;
 	}
 }
@@ -157,29 +169,43 @@ void main(void)
 	printk("Linaro FOTA example application\n");
 	printk("Device: %s, Serial: %x\n", product_id.name, product_id.number);
 
+	TC_START("Running Built in Self Test (BIST)");
+
 	/* Storage used to provide a BT MAC based on the serial number */
+	TC_PRINT("Setting Bluetooth MAC\n");
 	bt_storage_init();
 
+	TC_PRINT("Enabling Bluetooth\n");
 	err = bt_enable(NULL);
 	if (err) {
 		printk("ERROR: Bluetooth init failed (err %d)\n", err);
+		TC_END_RESULT(TC_FAIL);
+		TC_END_REPORT(TC_FAIL);
 		return;
 	}
+	else {
+		TC_END_RESULT(TC_PASS);
+	}
 
+	TC_PRINT("Enabling TCP Network Stack\n");
 	net_init();
+	TC_END_RESULT(TC_PASS);
 
 	/* Callbacks for BT LE connection state */
+	TC_PRINT("Registering Bluetooth LE connection callbacks\n");
 	ipss_init(&conn_callbacks);
 
+	TC_PRINT("Advertising Bluetooth IP Profile\n");
 	err = ipss_advertise();
 	if (err) {
 		printk("ERROR: Advertising failed to start (err %d)\n", err);
 		return;
 	}
-	printk("Advertising started successfully\n");
 
+	TC_PRINT("Starting the FOTA Service\n");
 	task_fiber_start(&fiberStack[0], STACKSIZE,
 			(nano_fiber_entry_t) fota_service, 0, 0, 7, 0);
 
+	TC_PRINT("Blinking LED\n");
 	blink_led();
 }
