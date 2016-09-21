@@ -41,6 +41,8 @@
 #include "boot_utils.h"
 #include "device.h"
 
+extern void sys_arch_reboot(int type);
+
 #define BUF_SIZE 1024
 uint8_t tcp_buf[BUF_SIZE];
 
@@ -708,7 +710,7 @@ int hawkbit_ddi_poll(struct net_context *context)
 					hawkbit_acid);
 
 	/* Reboot and let the bootloader take care of the swap process */
-	NVIC_SystemReset();
+	sys_arch_reboot(0);
 
 	return 0;
 }
