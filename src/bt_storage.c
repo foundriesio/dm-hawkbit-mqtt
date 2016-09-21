@@ -57,9 +57,9 @@ static ssize_t storage_clear(const bt_addr_le_t *addr)
 	return -ENOSYS;
 }
 
-#ifdef CONFIG_SOC_FAMILY_NRF5
 static void set_own_bt_addr(void)
 {
+#ifdef CONFIG_SOC_FAMILY_NRF5
 	int i;
 	uint8_t tmp;
 
@@ -72,14 +72,22 @@ static void set_own_bt_addr(void)
 	}
 	bt_addr.a.val[4] = 0xe7;
 	bt_addr.a.val[5] = 0xc0;
-}
+#elif CONFIG_SOC_SERIES_STM32F4X
+	int i;
+
+	/* There is no public address by default on nRF51, so generate a
+	 * random address based on the STM32 device id (unique).
+	 */
+	for (i = 0; i < 4; i++) {
+		bt_addr.a.val[i] = *((uint8_t *) 0x1fff7a10 + (i << 1));
+	}
+	bt_addr.a.val[4] = 0xe7;
+	bt_addr.a.val[5] = 0xc0;
 #else
-static void set_own_bt_addr(void)
-{
 	/* Set a random address as default */
 	bt_addr_copy(&bt_addr.a, BT_ADDR_ANY);
-}
 #endif
+}
 
 int bt_storage_init(void)
 {

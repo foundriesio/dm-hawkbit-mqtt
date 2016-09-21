@@ -42,6 +42,11 @@
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 #define UNKNOWN_APPEARANCE 0x0000
 
+/* General hardware specific configs */
+#if defined(CONFIG_SOC_SERIES_STM32F4X)
+#define DEVICE_ID_BASE	0x1fff7a10
+#endif
+
 struct product_id_t {
 	const char *name;
 	uint16_t number;

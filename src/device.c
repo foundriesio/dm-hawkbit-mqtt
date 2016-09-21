@@ -28,5 +28,8 @@ void set_device_id(void)
 {
 #ifdef CONFIG_SOC_FAMILY_NRF5
 	product_id.number = (uint16_t) NRF_FICR->DEVICEID[0];
+#elif CONFIG_SOC_SERIES_STM32F4X
+	product_id.number = *(uint8_t *) DEVICE_ID_BASE +
+				((*(uint8_t *) DEVICE_ID_BASE + 2) << 8);
 #endif
 }
