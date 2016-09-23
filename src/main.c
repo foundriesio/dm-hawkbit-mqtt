@@ -71,8 +71,8 @@ static void connected(struct bt_conn *conn, uint8_t err)
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
-	printk("BT LE Disconnected (reason %u)\n", reason);
-	bt_connection_state = false;
+	printk("BT LE Disconnected (reason %u), rebooting!\n", reason);
+	sys_arch_reboot(0);
 }
 
 static struct bt_conn_cb conn_callbacks = {

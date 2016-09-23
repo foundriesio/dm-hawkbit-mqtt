@@ -41,8 +41,6 @@
 #include "boot_utils.h"
 #include "device.h"
 
-extern void sys_arch_reboot(int type);
-
 #define BUF_SIZE 1024
 uint8_t tcp_buf[BUF_SIZE];
 
