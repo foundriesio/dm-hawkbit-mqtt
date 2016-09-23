@@ -71,7 +71,7 @@ static void set_own_bt_addr(void)
 		bt_addr.a.val[i] = tmp;
 	}
 	bt_addr.a.val[4] = 0xe7;
-	bt_addr.a.val[5] = 0xc0;
+	bt_addr.a.val[5] = 0xd6;
 #elif CONFIG_SOC_SERIES_STM32F4X
 	int i;
 
@@ -82,7 +82,7 @@ static void set_own_bt_addr(void)
 		bt_addr.a.val[i] = *((uint8_t *) 0x1fff7a10 + (i << 1));
 	}
 	bt_addr.a.val[4] = 0xe7;
-	bt_addr.a.val[5] = 0xc0;
+	bt_addr.a.val[5] = 0xd6;
 #else
 	/* Set a random address as default */
 	bt_addr_copy(&bt_addr.a, BT_ADDR_ANY);
