@@ -41,3 +41,4 @@ void boot_status_update(void);
 void boot_trigger_ota(void);
 uint32_t boot_acid_read(boot_acid_t type);
 void boot_acid_update(boot_acid_t type, uint32_t acid);
+int boot_erase_flash_bank(uint32_t bank_offset);

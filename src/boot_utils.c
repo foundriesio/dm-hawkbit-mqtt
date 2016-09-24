@@ -109,3 +109,16 @@ void boot_acid_update(boot_acid_t type, uint32_t acid)
 	OTA_INFO("ACID updated, current %d, update %d\n",
 			boot_acid.current, boot_acid.update);
 }
+
+int boot_erase_flash_bank(uint32_t bank_offset)
+{
+	int ret;
+
+	ret = flash_erase(flash_dev, bank_offset, FLASH_BANK_SIZE);
+	if (!ret) {
+		OTA_DBG("Flash bank (offset %x) erased successfully\n",
+					bank_offset);
+	}
+
+	return ret;
+}
