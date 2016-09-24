@@ -66,12 +66,14 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	} else {
 		printk("BT LE Connected\n");
 		bt_connection_state = true;
+		set_bluetooth_led(1);
 	}
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	printk("BT LE Disconnected (reason %u), rebooting!\n", reason);
+	set_bluetooth_led(0);
 	sys_arch_reboot(0);
 }
 

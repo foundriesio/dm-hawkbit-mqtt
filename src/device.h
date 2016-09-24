@@ -38,13 +38,12 @@
 #define LED2_GPIO	18
 #elif defined(CONFIG_BOARD_NRF52_NITROGEN)
 #define LED1_GPIO	29
-#define LED2_GPIO	28
 #elif defined(CONFIG_BOARD_NUCLEO_F401RE)
 #define LED1_GPIO	2
 #define LED2_GPIO	3
 #elif defined(CONFIG_BOARD_96B_CARBON)
-#define LED1_GPIO	15
-#define LED2_GPIO	5
+#define LED1_GPIO	2
+#define LED2_GPIO	15
 #endif
 
 /* LED */
@@ -53,14 +52,16 @@
 /* GPIO Driver */
 #if defined(CONFIG_SOC_FAMILY_NRF5)
 #define GPIO_DRV_NAME	"GPIO_0"
+#define GPIO_DRV_BT	"GPIO_0"
 #elif defined(CONFIG_BOARD_NUCLEO_F401RE)
 #define GPIO_DRV_NAME	"GPIOC"
 #elif defined(CONFIG_BOARD_96B_CARBON)
 #if (LED_BLINK == LED1_GPIO)
-#define GPIO_DRV_NAME   "GPIOA"
+#define GPIO_DRV_NAME   "GPIOD"
 #else
-#define GPIO_DRV_NAME   "GPIOB"
+#define GPIO_DRV_NAME   "GPIOA"
 #endif
+#define GPIO_DRV_BT	"GPIOB"
 #endif
 
 /* Bluetooth */
@@ -82,3 +83,4 @@ extern struct product_id_t product_id;
 extern struct device *flash_dev;
 
 void set_device_id(void);
+void set_bluetooth_led(bool state);
