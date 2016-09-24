@@ -75,7 +75,7 @@
 
 struct product_id_t {
 	const char *name;
-	uint16_t number;
+	uint32_t number;
 };
 
 extern struct product_id_t product_id;

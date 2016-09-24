@@ -30,6 +30,8 @@ void set_device_id(void)
 	product_id.number = (uint16_t) NRF_FICR->DEVICEID[0];
 #elif CONFIG_SOC_SERIES_STM32F4X
 	product_id.number = *(uint8_t *) DEVICE_ID_BASE +
-				((*(uint8_t *) DEVICE_ID_BASE + 2) << 8);
+				((*(uint8_t *) DEVICE_ID_BASE + 2) << 8) +
+				((*(uint8_t *) DEVICE_ID_BASE + 4) << 16) +
+				((*(uint8_t *) DEVICE_ID_BASE + 7) << 24);
 #endif
 }
