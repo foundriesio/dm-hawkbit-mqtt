@@ -53,6 +53,7 @@
 #define STACKSIZE 2560
 char fiberStack[STACKSIZE];
 
+#define MAX_POLL_FAIL	5
 int poll_sleep = 15 * sys_clock_ticks_per_sec;
 struct device *flash_dev;
 
@@ -89,7 +90,9 @@ static void fota_service(void)
 	static struct net_addr peer_addr, my_addr;
 	static struct in6_addr in6addr_my = MY_IPADDR;
 	static struct in6_addr in6addr_peer = HAWKBIT_IPADDR;
+	uint32_t failed_poll = 0;
 	uint32_t acid;
+	int ret;
 
 	peer_addr.in6_addr = in6addr_peer;
 	peer_addr.family = AF_INET6;
@@ -136,7 +139,19 @@ static void fota_service(void)
 			continue;
 		}
 
-		hawkbit_ddi_poll(context);
+		ret = hawkbit_ddi_poll(context);
+		if (ret < 0) {
+			failed_poll++;
+			OTA_DBG("Failed poll attempt %d\n", failed_poll);
+			if (failed_poll == MAX_POLL_FAIL) {
+				printk("Too many unsuccessful poll attempts,"
+						" rebooting!\n");
+				sys_arch_reboot(0);
+			}
+		} else {
+			/* restart the failed attempt counter */
+			failed_poll = 0;
+		}
 
 		net_analyze_stack("FOTA Fiber", fiberStack, STACKSIZE);
 	} while (1);
