@@ -249,13 +249,18 @@ static int hawkbit_install_update(struct net_context *context,
 				http_data.content_length, file_size);
 		return -1;
 	}
-	if (len > http_data.header_size) {
-		OTA_ERR("Download: data already in the first package\n");
-		return -1;
-	}
 
 	/* Everything looks good, so fetch and flash */
 	flash_write_protection_set(flash_dev, false);
+
+	if (len > http_data.header_size) {
+		len -= http_data.header_size;
+		flash_write(flash_dev, FLASH_BANK1_OFFSET,
+				tcp_buf + http_data.header_size,
+				len);
+		downloaded_size += len;
+	}
+
 	while (true) {
 		recv_buf = net_receive(context, TCP_RX_TIMEOUT);
 		if (!recv_buf) {
