@@ -124,9 +124,9 @@ static void fota_service(void)
 	acid = boot_acid_read(BOOT_ACID_UPDATE);
 	if (boot_status_read() == 0xff) {
 		boot_status_update();
+		boot_erase_flash_bank(FLASH_BANK1_OFFSET);
 		if (acid != -1) {
 			boot_acid_update(BOOT_ACID_CURRENT, acid);
-			boot_erase_flash_bank(FLASH_BANK1_OFFSET);
 		}
 	}
 
