@@ -38,12 +38,14 @@
 #define LED2_GPIO	18
 #elif defined(CONFIG_BOARD_NRF52_NITROGEN)
 #define LED1_GPIO	29
+#define BT_CONNECT_LED	28
 #elif defined(CONFIG_BOARD_NUCLEO_F401RE)
 #define LED1_GPIO	2
 #define LED2_GPIO	3
 #elif defined(CONFIG_BOARD_96B_CARBON)
 #define LED1_GPIO	2
 #define LED2_GPIO	15
+#define BT_CONNECT_LED	5
 #endif
 
 /* LED */
