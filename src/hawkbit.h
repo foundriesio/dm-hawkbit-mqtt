@@ -25,4 +25,4 @@ extern int poll_sleep;
 
 /* TODO: Use the proper reboot Zephyr API instead (enabled via Kconfig) */
 extern void sys_arch_reboot(int type);
-int hawkbit_ddi_poll(struct net_context *context);
+int hawkbit_ddi_poll(void);

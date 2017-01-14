@@ -32,10 +32,6 @@
 #include <bluetooth/uuid.h>
 #include <misc/stack.h>
 
-#include <net/ip_buf.h>
-#include <net/net_core.h>
-#include <net/net_socket.h>
-
 #include <soc.h>
 
 #include <tc_util.h>
@@ -47,9 +43,7 @@
 #include "boot_utils.h"
 #include "hawkbit.h"
 #include "device.h"
-
-/* Global address to be set from RA */
-#define MY_IPADDR	IN6ADDR_ANY_INIT
+#include "tcp.h"
 
 #define STACKSIZE 2560
 char threadStack[STACKSIZE];
@@ -87,31 +81,11 @@ static struct bt_conn_cb conn_callbacks = {
 /* Firmware OTA thread (Hawkbit) */
 static void fota_service(void)
 {
-	static struct net_context *context;
-	static struct net_addr peer_addr, my_addr;
-	static struct in6_addr in6addr_my = MY_IPADDR;
-	static struct in6_addr in6addr_peer = HAWKBIT_IPADDR;
 	uint32_t failed_poll = 0;
 	uint32_t acid;
 	int ret;
 
-	peer_addr.in6_addr = in6addr_peer;
-	peer_addr.family = AF_INET6;
-
-	my_addr.in6_addr = in6addr_my;
-	my_addr.family = AF_INET6;
-
 	OTA_INFO("Starting FOTA Service Thread\n");
-
-	context = net_context_get(IPPROTO_TCP,
-				    &peer_addr, HAWKBIT_PORT,
-				    &my_addr, 0);
-	if (!context) {
-		OTA_ERR("Failed to get network context\n");
-		TC_END_RESULT(TC_FAIL);
-		TC_END_REPORT(TC_FAIL);
-		return;
-	}
 
 	flash_dev = device_get_binding(FLASH_DRIVER_NAME);
 	if (!flash_dev) {
@@ -140,10 +114,10 @@ static void fota_service(void)
 			continue;
 		}
 
-		ret = hawkbit_ddi_poll(context);
+		ret = hawkbit_ddi_poll();
 		if (ret < 0) {
 			failed_poll++;
-			OTA_DBG("Failed poll attempt %d\n", failed_poll);
+			OTA_DBG("Failed poll attempt %d\n\n\n", failed_poll);
 			if (failed_poll == MAX_POLL_FAIL) {
 				printk("Too many unsuccessful poll attempts,"
 						" rebooting!\n");
@@ -203,10 +177,6 @@ void main(void)
 	else {
 		TC_END_RESULT(TC_PASS);
 	}
-
-	TC_PRINT("Enabling TCP Network Stack\n");
-	net_init();
-	TC_END_RESULT(TC_PASS);
 
 	/* Callbacks for BT LE connection state */
 	TC_PRINT("Registering Bluetooth LE connection callbacks\n");
