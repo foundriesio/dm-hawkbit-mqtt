@@ -20,7 +20,6 @@
 #include <string.h>
 #include <errno.h>
 #include <misc/byteorder.h>
-#include <misc/nano_work.h>
 #include <flash.h>
 #include <zephyr.h>
 

@@ -15,25 +15,9 @@
  *
  */
 
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <errno.h>
-#include <misc/printk.h>
-#include <misc/byteorder.h>
-#include <misc/nano_work.h>
-#include <gpio.h>
-#include <flash.h>
-#include <zephyr.h>
-
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
 #include <bluetooth/conn.h>
-#include <bluetooth/uuid.h>
 #include <misc/stack.h>
-
-#include <soc.h>
-
+#include <gpio.h>
 #include <tc_util.h>
 
 /* Local helpers and functions */
