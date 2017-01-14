@@ -73,7 +73,7 @@ int tcp_send(struct net_context *context, const char *buf, unsigned len)
 			ip_buf_unref(send_buf);
 			break;
 		}
-		fiber_sleep(TCP_TX_RETRY_TIMEOUT);
+		k_sleep(TCP_TX_RETRY_TIMEOUT);
 	}
 
 	return ret;

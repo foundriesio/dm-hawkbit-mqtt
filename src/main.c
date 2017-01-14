@@ -30,6 +30,7 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/conn.h>
 #include <bluetooth/uuid.h>
+#include <misc/stack.h>
 
 #include <net/ip_buf.h>
 #include <net/net_core.h>
@@ -51,7 +52,7 @@
 #define MY_IPADDR	IN6ADDR_ANY_INIT
 
 #define STACKSIZE 2560
-char fiberStack[STACKSIZE];
+char threadStack[STACKSIZE];
 
 #define MAX_POLL_FAIL	5
 int poll_sleep = K_SECONDS(15);
@@ -83,7 +84,7 @@ static struct bt_conn_cb conn_callbacks = {
 	.disconnected = disconnected,
 };
 
-/* Firmware OTA fiber (Hawkbit) */
+/* Firmware OTA thread (Hawkbit) */
 static void fota_service(void)
 {
 	static struct net_context *context;
@@ -100,7 +101,7 @@ static void fota_service(void)
 	my_addr.in6_addr = in6addr_my;
 	my_addr.family = AF_INET6;
 
-	OTA_INFO("Starting FOTA Service Fiber\n");
+	OTA_INFO("Starting FOTA Service Thread\n");
 
 	context = net_context_get(IPPROTO_TCP,
 				    &peer_addr, HAWKBIT_PORT,
@@ -133,7 +134,7 @@ static void fota_service(void)
 	TC_END_RESULT(TC_PASS);
 
 	do {
-		fiber_sleep(poll_sleep);
+		k_sleep(poll_sleep);
 		if (!bt_connection_state) {
 			OTA_DBG("No BT LE connection\n");
 			continue;
@@ -153,7 +154,7 @@ static void fota_service(void)
 			failed_poll = 0;
 		}
 
-		net_analyze_stack("FOTA Fiber", fiberStack, STACKSIZE);
+		stack_analyze("FOTA Thread", threadStack, STACKSIZE);
 	} while (1);
 }
 
@@ -167,7 +168,7 @@ void blink_led(void)
 
 	while (1) {
 		gpio_pin_write(gpio, LED_BLINK, cnt % 2);
-		task_sleep(K_SECONDS(1));
+		k_sleep(K_SECONDS(1));
                 if (cnt == 1) {
                         TC_END_RESULT(TC_PASS);
                         TC_END_REPORT(TC_PASS);
@@ -219,8 +220,9 @@ void main(void)
 	}
 
 	TC_PRINT("Starting the FOTA Service\n");
-	task_fiber_start(&fiberStack[0], STACKSIZE,
-			(nano_fiber_entry_t) fota_service, 0, 0, 7, 0);
+	k_thread_spawn(&threadStack[0], STACKSIZE,
+			(k_thread_entry_t) fota_service,
+			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
 
 	TC_PRINT("Blinking LED\n");
 	blink_led();
