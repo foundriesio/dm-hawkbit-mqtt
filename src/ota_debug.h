@@ -23,8 +23,7 @@
 #define OTA_ERR(fmt, ...) printk("ota: %s: " fmt, __func__, ##__VA_ARGS__)
 
 #ifdef DEBUG
-#define OTA_DBG(fmt, ...) printk("ota: %s (%p): " fmt, __func__, \
-				 sys_thread_self_get(), ##__VA_ARGS__)
+#define OTA_DBG(fmt, ...) printk("ota: %s: " fmt, __func__, ##__VA_ARGS__)
 #else
 #define OTA_DBG(...)
 #endif
