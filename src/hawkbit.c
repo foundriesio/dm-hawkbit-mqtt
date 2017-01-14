@@ -176,7 +176,8 @@ static int handle_headers_complete_download(struct http_parser *parser)
 	return 1;
 }
 
-static int hawkbit_install_update(uint8_t *tcp_buf, const char *download_http,
+static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
+				  const char *download_http,
 				  size_t file_size)
 {
 	struct http_parser_settings http_settings;
@@ -185,7 +186,7 @@ static int hawkbit_install_update(uint8_t *tcp_buf, const char *download_http,
 	int downloaded_size = 0;
 	int ret, len;
 
-	if (!tcp_buf || !download_http || !file_size) {
+	if (!tcp_buffer || !download_http || !file_size) {
 		return -EINVAL;
 	}
 
@@ -203,14 +204,14 @@ static int hawkbit_install_update(uint8_t *tcp_buf, const char *download_http,
 	OTA_INFO("Starting the download and flash process\n");
 
 	/* Here we just proceed with a normal HTTP Download process */
-	memset(tcp_buf, 0, TCP_RECV_BUF_SIZE);
-	snprintf(tcp_buf, TCP_RECV_BUF_SIZE, "GET %s HTTP/1.1\r\n"
+	memset(tcp_buffer, 0, size);
+	snprintf(tcp_buffer, size, "GET %s HTTP/1.1\r\n"
 				"Host: %s\r\n"
 				"Connection: close\r\n"
 				"\r\n",
 				download_http, HAWKBIT_HOST);
 
-	ret = tcp_send((const char *) tcp_buf, strlen(tcp_buf));
+	ret = tcp_send((const char *) tcp_buffer, strlen(tcp_buffer));
 	if (ret < 0) {
 		OTA_ERR("Failed to send buffer, err %d\n", ret);
 		return ret;
@@ -218,7 +219,7 @@ static int hawkbit_install_update(uint8_t *tcp_buf, const char *download_http,
 
 	/* Receive is special for download, since it writes to flash */
 	memset(tcp_buf, 0, TCP_RECV_BUF_SIZE);
-	len = tcp_recv((char *) tcp_buf, TCP_RECV_BUF_SIZE, TCP_RX_TIMEOUT);
+	len = tcp_recv((char *) tcp_buffer, size, TCP_RX_TIMEOUT);
 	if (len <= 0) {
 		OTA_ERR("Unable to start the download process (ret=%d)\n", len);
 		return -1;
@@ -226,7 +227,7 @@ static int hawkbit_install_update(uint8_t *tcp_buf, const char *download_http,
 
 	/* Parse the HTTP headers available from the first buffer */
 	http_parser_execute(&parser, &http_settings,
-				(const char *) tcp_buf, TCP_RECV_BUF_SIZE);
+				(const char *) tcp_buffer, size);
 	if (parser.status_code != 200) {
 		OTA_ERR("Download: http error %d\n", parser.status_code);
 		return -1;
@@ -244,13 +245,13 @@ static int hawkbit_install_update(uint8_t *tcp_buf, const char *download_http,
 	if (len > http_data.header_size) {
 		len -= http_data.header_size;
 		flash_write(flash_dev, FLASH_BANK1_OFFSET,
-				tcp_buf + http_data.header_size,
+				tcp_buffer + http_data.header_size,
 				len);
 		downloaded_size += len;
 	}
 
 	while (true) {
-		len = tcp_recv((char *) tcp_buf, TCP_RECV_BUF_SIZE, TCP_RX_TIMEOUT);
+		len = tcp_recv((char *) tcp_buffer, size, TCP_RX_TIMEOUT);
 		if (len <= 0) {
 			if (len < 0) {
 				OTA_ERR("Download error recieved: %d", len);
@@ -259,7 +260,7 @@ static int hawkbit_install_update(uint8_t *tcp_buf, const char *download_http,
 			break;
 		}
 		flash_write(flash_dev, FLASH_BANK1_OFFSET + downloaded_size,
-							tcp_buf, len);
+							tcp_buffer, len);
 		downloaded_size += len;
 	}
 	flash_write_protection_set(flash_dev, true);
@@ -276,25 +277,25 @@ static int hawkbit_install_update(uint8_t *tcp_buf, const char *download_http,
 	return 0;
 }
 
-static int hawkbit_query(uint8_t *tcp_buf,
+static int hawkbit_query(uint8_t *tcp_buffer, size_t size,
 			 struct json_data_t *json)
 {
 	struct http_parser_settings http_settings;
 	struct http_parser parser;
 	int ret;
 
-	if (!tcp_buf) {
+	if (!tcp_buffer) {
 		return -EINVAL;
 	}
 
-	OTA_DBG("\n%s\n", tcp_buf);
+	OTA_DBG("\n\n%s\n", tcp_buffer);
 
-	ret = tcp_send((const char *) tcp_buf, strlen(tcp_buf));
+	ret = tcp_send((const char *) tcp_buffer, strlen(tcp_buffer));
 	if (ret < 0) {
 		OTA_ERR("Failed to send buffer, err %d\n", ret);
 		return ret;
 	}
-	ret = tcp_recv((char *) tcp_buf, TCP_RECV_BUF_SIZE, K_FOREVER);
+	ret = tcp_recv((char *) tcp_buffer, size, K_FOREVER);
 	if (ret <= 0) {
 		OTA_ERR("No received data (ret=%d)\n", ret);
 		return -1;
@@ -307,7 +308,7 @@ static int hawkbit_query(uint8_t *tcp_buf,
 	parser.data = json;
 
 	http_parser_execute(&parser, &http_settings,
-				(const char *) tcp_buf, TCP_RECV_BUF_SIZE);
+				(const char *) tcp_buffer, size);
 	if (parser.status_code != 200) {
 		OTA_ERR("Invalid HTTP status code %d\n",
 						parser.status_code);
@@ -331,18 +332,18 @@ static int hawkbit_query(uint8_t *tcp_buf,
 	return 0;
 }
 
-static int hawkbit_report_config_data(void)
+static int hawkbit_report_config_data(uint8_t *tcp_buffer, size_t size)
 {
 	char *helper;
 
 	OTA_INFO("Reporting target config data to Hawkbit\n");
 
 	/* Use half for the header and half for the json content */
-	memset(tcp_buf, 0, TCP_RECV_BUF_SIZE);
-	helper = tcp_buf + TCP_RECV_BUF_SIZE / 2;
+	memset(tcp_buffer, 0, size);
+	helper = tcp_buffer + size / 2;
 
 	/* Start with JSON as we need to calculate the content length */
-	snprintf(helper, TCP_RECV_BUF_SIZE / 2, "{"
+	snprintf(helper, size / 2, "{"
 			"\"data\":{"
 				"\"board\":\"%s\","
 				"\"serial\":\"%x\"},"
@@ -351,8 +352,8 @@ static int hawkbit_report_config_data(void)
 				"\"execution\":\"closed\"}"
 			"}", product_id.name, product_id.number);
 
-	/* TCP_RECV_BUF_SIZE / 2 should be enough for the header */
-	snprintf(tcp_buf, TCP_RECV_BUF_SIZE, "PUT %s/%s-%x/configData HTTP/1.1\r\n"
+	/* size / 2 should be enough for the header */
+	snprintf(tcp_buffer, size, "PUT %s/%s-%x/configData HTTP/1.1\r\n"
 			"Host: %s\r\n"
 			"Content-Type: application/json\r\n"
 			"Content-Length: %d\r\n"
@@ -361,7 +362,7 @@ static int hawkbit_report_config_data(void)
 			product_id.name, product_id.number,
 			HAWKBIT_HOST, strlen(helper), helper);
 
-	if (hawkbit_query((uint8_t *) &tcp_buf, NULL) < 0) {
+	if (hawkbit_query(tcp_buffer, size, NULL) < 0) {
 		OTA_ERR("Error when reporting config data to Hawkbit\n");
 		return -1;
 	}
@@ -370,6 +371,7 @@ static int hawkbit_report_config_data(void)
 }
 
 static int hawkbit_report_update_status(int acid,
+					uint8_t *tcp_buffer, size_t size,
 					hawkbit_result_status_t status,
 					hawkbit_exec_status_t exec)
 {
@@ -416,19 +418,19 @@ static int hawkbit_report_update_status(int acid,
 	OTA_INFO("Reporting action ID feedback: %s\n", finished);
 
 	/* Use half for the header and half for the json content */
-	memset(tcp_buf, 0, TCP_RECV_BUF_SIZE);
-	helper = tcp_buf + TCP_RECV_BUF_SIZE / 2;
+	memset(tcp_buffer, 0, size);
+	helper = tcp_buffer + size / 2;
 
 	/* Start with JSON as we need to calculate the content length */
-	snprintf(helper, TCP_RECV_BUF_SIZE / 2, "{"
+	snprintf(helper, size / 2, "{"
 			"\"id\":\"%d\","
 			"\"status\":{"
 				"\"result\":{\"finished\":\"%s\"},"
 				"\"execution\":\"%s\"}"
 			"}", acid, finished, execution);
 
-	/* TCP_RECV_BUF_SIZE / 2 should be enough for the header */
-	snprintf(tcp_buf, TCP_RECV_BUF_SIZE,
+	/* size / 2 should be enough for the header */
+	snprintf(tcp_buffer, size,
 			"POST %s/%s-%x/deploymentBase/%d/feedback HTTP/1.1\r\n"
 			"Host: %s\r\n"
 			"Content-Type: application/json\r\n"
@@ -438,7 +440,7 @@ static int hawkbit_report_update_status(int acid,
 			product_id.name, product_id.number, acid,
 			HAWKBIT_HOST, strlen(helper), helper);
 
-	if (hawkbit_query((uint8_t *) &tcp_buf, NULL) < 0) {
+	if (hawkbit_query(tcp_buffer, size, NULL) < 0) {
 		OTA_ERR("Error when reporting acId feedback to Hawkbit\n");
 		return -1;
 	}
@@ -471,7 +473,7 @@ int hawkbit_ddi_poll(void)
 				product_id.name, product_id.number,
 				HAWKBIT_HOST);
 
-	if (hawkbit_query((uint8_t *) &tcp_buf, &json) < 0) {
+	if (hawkbit_query((uint8_t *) &tcp_buf, TCP_RECV_BUF_SIZE, &json) < 0) {
 		OTA_ERR("Error when polling from Hawkbit\n");
 		return -1;
 	}
@@ -528,7 +530,7 @@ int hawkbit_ddi_poll(void)
 
 	/* Update config data if the server asked for it */
 	if (update_config_data) {
-		hawkbit_report_config_data();
+		hawkbit_report_config_data(tcp_buf, TCP_RECV_BUF_SIZE);
 	}
 
 	if (strlen(deployment_base) == 0) {
@@ -547,7 +549,7 @@ int hawkbit_ddi_poll(void)
 				deployment_base, HAWKBIT_HOST);
 
 	memset(&json, 0, sizeof(struct json_data_t));
-	if (hawkbit_query((uint8_t *) &tcp_buf, &json) < 0) {
+	if (hawkbit_query((uint8_t *) &tcp_buf, TCP_RECV_BUF_SIZE, &json) < 0) {
 		OTA_ERR("Error when querying from Hawkbit\n");
 		return -1;
 	}
@@ -650,12 +652,14 @@ int hawkbit_ddi_poll(void)
 	if (boot_acid_read(BOOT_ACID_CURRENT) == hawkbit_acid) {
 		/* We are coming from a successful flash, update the server */
 		hawkbit_report_update_status(hawkbit_acid,
+					     tcp_buf, TCP_RECV_BUF_SIZE,
 					     HAWKBIT_RESULT_SUCCESS,
 					     HAWKBIT_EXEC_CLOSED);
 		return 0;
 	} else if (boot_acid_read(BOOT_ACID_UPDATE) == hawkbit_acid) {
 		/* There was already an atempt, so announce a failure */
 		hawkbit_report_update_status(hawkbit_acid,
+					     tcp_buf, TCP_RECV_BUF_SIZE,
 					     HAWKBIT_RESULT_FAILURE,
 					     HAWKBIT_EXEC_CLOSED);
 		return 0;
@@ -669,6 +673,7 @@ int hawkbit_ddi_poll(void)
 	/* Error detected when parsing the SM */
 	if (ret == -1) {
 		hawkbit_report_update_status(hawkbit_acid,
+					     tcp_buf, TCP_RECV_BUF_SIZE,
 					     HAWKBIT_RESULT_FAILURE,
 					     HAWKBIT_EXEC_CLOSED);
 		return -1;
@@ -676,6 +681,7 @@ int hawkbit_ddi_poll(void)
 	if (file_size > FLASH_BANK_SIZE) {
 		OTA_ERR("Artifact file size too big (%d)\n", file_size);
 		hawkbit_report_update_status(hawkbit_acid,
+					     tcp_buf, TCP_RECV_BUF_SIZE,
 					     HAWKBIT_RESULT_FAILURE,
 					     HAWKBIT_EXEC_CLOSED);
 		return -1;
@@ -685,9 +691,10 @@ int hawkbit_ddi_poll(void)
 	OTA_INFO("Valid action ID %d found, proceeding with the update\n",
 					hawkbit_acid);
 	hawkbit_report_update_status(hawkbit_acid,
+				     tcp_buf, TCP_RECV_BUF_SIZE,
 				     HAWKBIT_RESULT_SUCCESS,
 				     HAWKBIT_EXEC_PROCEEDING);
-	ret = hawkbit_install_update((uint8_t *) &tcp_buf,
+	ret = hawkbit_install_update((uint8_t *) &tcp_buf, TCP_RECV_BUF_SIZE,
 					download_http, file_size);
 	if (ret != 0) {
 		OTA_ERR("Failed to install the update for action ID %d\n",
