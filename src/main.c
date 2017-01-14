@@ -54,7 +54,7 @@
 char fiberStack[STACKSIZE];
 
 #define MAX_POLL_FAIL	5
-int poll_sleep = 15 * sys_clock_ticks_per_sec;
+int poll_sleep = K_SECONDS(15);
 struct device *flash_dev;
 
 static bool bt_connection_state = false;
@@ -167,7 +167,7 @@ void blink_led(void)
 
 	while (1) {
 		gpio_pin_write(gpio, LED_BLINK, cnt % 2);
-		task_sleep(SECONDS(1));
+		task_sleep(K_SECONDS(1));
                 if (cnt == 1) {
                         TC_END_RESULT(TC_PASS);
                         TC_END_REPORT(TC_PASS);

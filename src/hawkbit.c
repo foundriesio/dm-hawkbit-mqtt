@@ -510,9 +510,9 @@ int hawkbit_ddi_poll(struct net_context *context)
 			}
 			len = hawkbit_time2sec(json.data + jtks[i + 5].start);
 			if (len > 0 &&
-				poll_sleep != len * sys_clock_ticks_per_sec) {
+				poll_sleep != K_SECONDS(len)) {
 				OTA_INFO("New poll sleep %d seconds\n", len);
-				poll_sleep = len * sys_clock_ticks_per_sec;
+				poll_sleep = K_SECONDS(len);
 				i += 5;
 			}
 		} else if (jsoneq(json.data, &jtks[i], "deploymentBase") &&
