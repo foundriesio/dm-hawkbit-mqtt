@@ -473,9 +473,10 @@ int hawkbit_ddi_poll(void)
 				product_id.name, product_id.number,
 				HAWKBIT_HOST);
 
-	if (hawkbit_query(tcp_buf, TCP_RECV_BUF_SIZE, &json) < 0) {
+	ret = hawkbit_query(tcp_buf, TCP_RECV_BUF_SIZE, &json);
+	if (ret < 0) {
 		OTA_ERR("Error when polling from Hawkbit\n");
-		return -1;
+		return ret;
 	}
 
 	ntk = json_parser(&json, &jsmnp, jtks,
