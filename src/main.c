@@ -29,7 +29,7 @@
 #include "device.h"
 #include "tcp.h"
 
-#define STACKSIZE 2560
+#define STACKSIZE 3840
 char threadStack[STACKSIZE];
 
 #define MAX_POLL_FAIL	5
