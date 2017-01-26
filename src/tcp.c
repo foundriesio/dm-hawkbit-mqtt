@@ -80,7 +80,7 @@ static void tcp_received_cb(struct net_context *context,
 		 * the nbuf for later processing
 		 */
 		if (read_bytes + net_nbuf_appdatalen(buf) >= TCP_RECV_BUF_SIZE) {
-			printk("tcp_received: ERROR buffer overflow! (read(%u)+bufflen(%u) >= %u)\n",
+			OTA_ERR("ERROR buffer overflow! (read(%u)+bufflen(%u) >= %u)\n",
 			       read_bytes, net_nbuf_appdatalen(buf), TCP_RECV_BUF_SIZE);
 			net_nbuf_unref(buf);
 			tcp_cleanup(true);
@@ -132,7 +132,7 @@ int tcp_connect(void)
 	if (!net_ctx) {
 		rc = net_context_get(AF_INET6, SOCK_STREAM, IPPROTO_TCP, &net_ctx);
 		if (rc < 0) {
-			printk("Cannot get network context for IPv6 TCP (%d)\n", rc);
+			OTA_ERR("Cannot get network context for IPv6 TCP (%d)\n", rc);
 			tcp_cleanup(true);
 			return -EIO;
 		}
@@ -144,14 +144,14 @@ int tcp_connect(void)
 		rc = net_context_bind(net_ctx, (struct sockaddr *)&my_addr,
 				      sizeof(struct sockaddr_in6));
 		if (rc < 0) {
-			printk("Cannot bind IPv6 TCP addr (%d)\n", rc);
+			OTA_ERR("Cannot bind IPv6 TCP addr (%d)\n", rc);
 			tcp_cleanup(true);
 			return -EINVAL;
 		}
 	}
 
 	if (!net_ctx) {
-		printk("ERROR: No TCP network context!\n");
+		OTA_ERR("ERROR: No TCP network context!\n");
 		return -EIO;
 	}
 
@@ -169,7 +169,7 @@ int tcp_connect(void)
 				  sizeof(struct sockaddr_in6), NULL,
 				  SERVER_CONNECT_TIMEOUT, NULL);
 	if (rc < 0) {
-		printk("Cannot connect to IPv6 server address (%d)\n", rc);
+		OTA_ERR("Cannot connect to IPv6 server address (%d)\n", rc);
 		tcp_cleanup(true);
 		return -EIO;
 	}
@@ -188,13 +188,13 @@ int tcp_send(const unsigned char *buf, size_t size)
 
 	send_buf = net_nbuf_get_tx(net_ctx);
 	if (!send_buf) {
-		printk("cannot create buf\n");
+		OTA_ERR("cannot create buf\n");
 		return -EIO;
 	}
 
 	rc = net_nbuf_append(send_buf, size, (uint8_t *) buf);
 	if (!rc) {
-		printk("cannot write buf\n");
+		OTA_ERR("cannot write buf\n");
 		net_nbuf_unref(send_buf);
 		return -EIO;
 	}
@@ -205,7 +205,7 @@ int tcp_send(const unsigned char *buf, size_t size)
 	rc = net_context_send(send_buf, NULL, K_FOREVER, NULL, NULL);
 	net_nbuf_unref(send_buf);
 	if (rc < 0) {
-		printk("Cannot send data to peer (%d)\n", rc);
+		OTA_ERR("Cannot send data to peer (%d)\n", rc);
 
 		if (rc == -ESHUTDOWN)
 			tcp_cleanup(true);
@@ -229,7 +229,7 @@ int tcp_recv(unsigned char *buf, size_t size, int32_t timeout)
 	/* wait here for the connection to complete or timeout */
 	rc = k_sem_take(&sem_recv_wait, timeout);
 	if (rc < 0 && rc != -ETIMEDOUT) {
-		printk("tcp_recv: recv_wait sem error = %d\n", rc);
+		OTA_ERR("recv_wait sem error = %d\n", rc);
 		return rc;
 	}
 
