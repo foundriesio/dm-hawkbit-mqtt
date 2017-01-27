@@ -15,6 +15,8 @@
  *
  */
 
+#include <board.h>
+
 /* Flash specific configs */
 #if defined(CONFIG_SOC_SERIES_NRF52X)
 #define FLASH_DRIVER_NAME	"NRF5_FLASH"
@@ -33,37 +35,12 @@
 #endif
 
 /* GPIO */
-#if defined(CONFIG_BOARD_NRF52_PCA10040)
-#define LED1_GPIO	17
-#define LED2_GPIO	18
-#elif defined(CONFIG_BOARD_96B_NITROGEN)
-#define LED1_GPIO	29
-#define BT_CONNECT_LED	28
-#elif defined(CONFIG_BOARD_NUCLEO_F401RE)
-#define LED1_GPIO	2
-#define LED2_GPIO	3
-#elif defined(CONFIG_BOARD_96B_CARBON)
-#define LED1_GPIO	2
-#define LED2_GPIO	15
-#define BT_CONNECT_LED	5
-#endif
-
-/* LED */
-#define LED_BLINK	LED1_GPIO
-
-/* GPIO Driver */
-#if defined(CONFIG_SOC_FAMILY_NRF5)
-#define GPIO_DRV_NAME	"GPIO_0"
-#define GPIO_DRV_BT	"GPIO_0"
-#elif defined(CONFIG_BOARD_NUCLEO_F401RE)
-#define GPIO_DRV_NAME	"GPIOC"
-#elif defined(CONFIG_BOARD_96B_CARBON)
-#if (LED_BLINK == LED1_GPIO)
-#define GPIO_DRV_NAME   "GPIOD"
-#else
-#define GPIO_DRV_NAME   "GPIOA"
-#endif
-#define GPIO_DRV_BT	"GPIOB"
+/* This can be customized by device if needed */
+#define LED_GPIO_PIN	LED0_GPIO_PIN
+#define LED_GPIO_PORT	LED0_GPIO_PORT
+#if defined(CONFIG_BOARD_96B_NITROGEN) || defined(CONFIG_BOARD_96B_CARBON)
+#define BT_CONNECT_LED	BT_GPIO_PIN
+#define GPIO_DRV_BT	BT_GPIO_PORT
 #endif
 
 /* Bluetooth */

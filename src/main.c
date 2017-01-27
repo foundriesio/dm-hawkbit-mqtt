@@ -125,11 +125,11 @@ void blink_led(void)
 	uint32_t cnt = 0;
 	struct device *gpio;
 
-	gpio = device_get_binding(GPIO_DRV_NAME);
-	gpio_pin_configure(gpio, LED_BLINK, GPIO_DIR_OUT);
+	gpio = device_get_binding(LED_GPIO_PORT);
+	gpio_pin_configure(gpio, LED_GPIO_PIN, GPIO_DIR_OUT);
 
 	while (1) {
-		gpio_pin_write(gpio, LED_BLINK, cnt % 2);
+		gpio_pin_write(gpio, LED_GPIO_PIN, cnt % 2);
 		k_sleep(K_SECONDS(1));
                 if (cnt == 1) {
                         TC_END_RESULT(TC_PASS);
