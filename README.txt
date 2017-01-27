@@ -22,11 +22,10 @@ Creating and signing the image:
 Check https://collaborate.linaro.org/display/MET/Dual+bank+boot+with+RSA for
 the complete overview.
 
-Quick example (Nordic):
+Quick example (Nitrogen; run this from zephyr-utils):
 
-zep2newt.py --bin outdir/nrf52_pca10040/zephyr.bin \
-	--key apache-mynewt-core/apps/boot/keys/image_sign.pem --sig RSA \
-	--vtoff 0x20 --out zephyr.img.bin
+./zep2newt.py --bin <zephyr-fota-hawkbit>/outdir/96b_nitrogen/zephyr.bin \
+	      --key root.pem --sig RSA --vtoff 0x100 --out zephyr.img.bin
 
 Then just upload zephyr.img.bin to the Hawkbit server.
 
