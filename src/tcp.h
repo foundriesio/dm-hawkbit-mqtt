@@ -15,7 +15,6 @@
  *
  */
 
-#define TCP_RX_TIMEOUT K_SECONDS(3)
 /*
  * TCP Buffer Logic:
  * HTTP Header (17) + 3x MTU Packets 640 = 1937
