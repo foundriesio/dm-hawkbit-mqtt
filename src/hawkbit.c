@@ -106,18 +106,18 @@ static int json_parser(struct json_data_t *json, jsmn_parser *parser,
 	if (ret < 0) {
 		switch (ret) {
 		case JSMN_ERROR_NOMEM:
-			OTA_DBG("JSON: Not enough tokens\n");
+			OTA_ERR("JSON: Not enough tokens\n");
 			break;
 		case JSMN_ERROR_INVAL:
-			OTA_DBG("JSON: Invalid character found\n");
+			OTA_ERR("JSON: Invalid character found\n");
 			break;
 		case JSMN_ERROR_PART:
-			OTA_DBG("JSON: Incomplete JSON\n");
+			OTA_ERR("JSON: Incomplete JSON\n");
 			break;
 		}
 		return ret;
 	} else if (ret == 0 || tks[0].type != JSMN_OBJECT) {
-		OTA_DBG("JSON: First token is not an object\n");
+		OTA_ERR("JSON: First token is not an object\n");
 		return 0;
 	}
 
