@@ -36,6 +36,7 @@ char threadStack[STACKSIZE];
 int poll_sleep = K_SECONDS(15);
 struct device *flash_dev;
 
+#if defined(CONFIG_BLUETOOTH)
 static bool bt_connection_state = false;
 
 /* BT LE Connect/Disconnect callbacks */
@@ -61,6 +62,7 @@ static struct bt_conn_cb conn_callbacks = {
 	.connected = connected,
 	.disconnected = disconnected,
 };
+#endif
 
 /* Firmware OTA thread (Hawkbit) */
 static void fota_service(void)
@@ -93,10 +95,12 @@ static void fota_service(void)
 
 	do {
 		k_sleep(poll_sleep);
+#if defined(CONFIG_BLUETOOTH)
 		if (!bt_connection_state) {
 			OTA_DBG("No BT LE connection\n");
 			continue;
 		}
+#endif
 
 		ret = hawkbit_ddi_poll();
 		if (ret < 0) {
@@ -137,7 +141,6 @@ void blink_led(void)
 
 void main(void)
 {
-	int err;
 
 	set_device_id();
 
@@ -145,6 +148,9 @@ void main(void)
 	printk("Device: %s, Serial: %x\n", product_id.name, product_id.number);
 
 	TC_START("Running Built in Self Test (BIST)");
+
+#if defined(CONFIG_BLUETOOTH)
+	int err;
 
 	/* Storage used to provide a BT MAC based on the serial number */
 	TC_PRINT("Setting Bluetooth MAC\n");
@@ -172,6 +178,7 @@ void main(void)
 		printk("ERROR: Advertising failed to start (err %d)\n", err);
 		return;
 	}
+#endif
 
 	TC_PRINT("Starting the FOTA Service\n");
 	k_thread_spawn(&threadStack[0], STACKSIZE,
