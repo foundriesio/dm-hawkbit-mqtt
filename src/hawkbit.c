@@ -309,7 +309,7 @@ static int hawkbit_query(uint8_t *tcp_buffer, size_t size,
 	parser.data = json;
 
 	http_parser_execute(&parser, &http_settings,
-				(const char *) tcp_buffer, size);
+				(const char *) tcp_buffer, ret);
 	if (parser.status_code != 200) {
 		OTA_ERR("Invalid HTTP status code %d\n",
 						parser.status_code);
