@@ -146,12 +146,41 @@ static void tcp_init(void)
 	net_if_ipv6_addr_add(iface,
 			     &NET_SIN_ADDR(&client_addr),
 			     NET_ADDR_MANUAL, 0);
+/*
+ * For IPv6 via ethernet, Zephyr does not support an autoconfiguration
+ * method such as DHCPv6.  Use IPv4 until it's implemented if this is
+ * required.
+ */
 #elif defined(CONFIG_NET_IPV4)
+#if defined(CONFIG_NET_DHCPV4)
+	net_dhcpv4_start(iface);
+
+	/* Add delays so DHCP can assign IP */
+	/* TODO: add a timeout/retry */
+	OTA_INFO("Waiting for DHCP ");
+	do {
+		OTA_INFO(".");
+		k_sleep(K_SECONDS(1));
+	} while (net_is_ipv4_addr_unspecified(&iface->dhcpv4.requested_ip));
+	OTA_INFO(" Done!\n");
+
+	/* TODO: add a timeout */
+	OTA_INFO("Waiting for IP assginment ");
+	do {
+		OTA_INFO(".");
+		k_sleep(K_SECONDS(1));
+	} while (!net_is_my_ipv4_addr(&iface->dhcpv4.requested_ip));
+	OTA_INFO(" Done!\n");
+
+	net_ipaddr_copy(&NET_SIN_ADDR(&client_addr),
+			&iface->dhcpv4.requested_ip);
+#else
 	net_addr_pton(FOTA_AF_INET, LOCAL_IPADDR,
 		      (struct sockaddr *)&NET_SIN_ADDR(&client_addr));
 	net_if_ipv4_addr_add(iface,
 			     &NET_SIN_ADDR(&client_addr),
 			     NET_ADDR_MANUAL, 0);
+#endif
 #endif
 
 	k_sem_init(&sem_recv_wait, 0, 1);
