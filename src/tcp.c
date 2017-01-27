@@ -33,9 +33,31 @@
 #define SERVER_CONNECT_MAX_WAIT_COUNT	2
 #define TCP_TX_TIMEOUT			K_MSEC(500)
 
+/* Network Config */
+#if defined(CONFIG_NET_IPV6)
+#define FOTA_AF_INET		AF_INET6
+#define NET_SIN_FAMILY(s)	net_sin6(s)->sin6_family
+#define NET_SIN_ADDR(s)		net_sin6(s)->sin6_addr
+#define NET_SIN_PORT(s)		net_sin6(s)->sin6_port
+#define NET_SIN_SIZE		struct sockaddr_in6
+#define LOCAL_IPADDR		"::"
+#ifdef CONFIG_NET_SAMPLES_PEER_IPV6_ADDR
+#define PEER_IPADDR		CONFIG_NET_SAMPLES_PEER_IPV6_ADDR
+#else
+#define PEER_IPADDR		HAWKBIT_IPADDR
+#endif
+#elif defined(CONFIG_NET_IPV4)
+#define FOTA_AF_INET		AF_INET
+#define NET_SIN_FAMILY(s)	net_sin(s)->sin_family
+#define NET_SIN_ADDR(s)		net_sin(s)->sin_addr
+#define NET_SIN_PORT(s)		net_sin(s)->sin_port
+#define NET_SIN_SIZE		struct sockaddr_in
+#define LOCAL_IPADDR		CONFIG_NET_SAMPLES_MY_IPV4_ADDR
+#define PEER_IPADDR		CONFIG_NET_SAMPLES_PEER_IPV4_ADDR
+#endif
+
 /* Global address to be set from RA */
-static struct in6_addr client_addr = IN6ADDR_ANY_INIT;
-static struct in6_addr server_addr = HAWKBIT_IPADDR;
+static struct sockaddr client_addr;
 
 #define SERVER_PORT	HAWKBIT_PORT
 
@@ -110,8 +132,27 @@ static void tcp_received_cb(struct net_context *context,
 
 static void tcp_init(void)
 {
-	net_if_ipv6_addr_add(net_if_get_default(),
-			     &client_addr, NET_ADDR_MANUAL, 0);
+	struct net_if *iface;
+
+	iface = net_if_get_default();
+	if (!iface) {
+		printk("Cannot find default network interface!\n");
+		return;
+	}
+
+#if defined(CONFIG_NET_IPV6)
+	net_addr_pton(FOTA_AF_INET, LOCAL_IPADDR,
+		      (struct sockaddr *)&NET_SIN_ADDR(&client_addr));
+	net_if_ipv6_addr_add(iface,
+			     &NET_SIN_ADDR(&client_addr),
+			     NET_ADDR_MANUAL, 0);
+#elif defined(CONFIG_NET_IPV4)
+	net_addr_pton(FOTA_AF_INET, LOCAL_IPADDR,
+		      (struct sockaddr *)&NET_SIN_ADDR(&client_addr));
+	net_if_ipv4_addr_add(iface,
+			     &NET_SIN_ADDR(&client_addr),
+			     NET_ADDR_MANUAL, 0);
+#endif
 
 	k_sem_init(&sem_recv_wait, 0, 1);
 	k_sem_init(&sem_recv_mutex, 1, 1);
@@ -121,8 +162,8 @@ static void tcp_init(void)
 
 int tcp_connect(void)
 {
-	struct sockaddr_in6 my_addr = { 0 };
-	struct sockaddr_in6 dst_addr = { 0 };
+	struct sockaddr my_addr;
+	struct sockaddr dst_addr;
 	int rc;
 
 	if (!tcp_inited)
@@ -130,21 +171,24 @@ int tcp_connect(void)
 
 	/* make sure we have a network context */
 	if (!net_ctx) {
-		rc = net_context_get(AF_INET6, SOCK_STREAM, IPPROTO_TCP, &net_ctx);
+		rc = net_context_get(FOTA_AF_INET, SOCK_STREAM,
+				     IPPROTO_TCP, &net_ctx);
 		if (rc < 0) {
-			OTA_ERR("Cannot get network context for IPv6 TCP (%d)\n", rc);
+			OTA_ERR("Cannot get network context for TCP (%d)\n",
+				rc);
 			tcp_cleanup(true);
 			return -EIO;
 		}
 
-		net_ipaddr_copy(&my_addr.sin6_addr, &client_addr);
-		my_addr.sin6_family = AF_INET6;
-		my_addr.sin6_port = 0;
+		net_ipaddr_copy(&NET_SIN_ADDR(&my_addr),
+				&NET_SIN_ADDR(&client_addr));
+		NET_SIN_FAMILY(&my_addr) = FOTA_AF_INET;
+		NET_SIN_PORT(&my_addr) = 0;
 
-		rc = net_context_bind(net_ctx, (struct sockaddr *)&my_addr,
-				      sizeof(struct sockaddr_in6));
+		rc = net_context_bind(net_ctx, &my_addr,
+				      sizeof(NET_SIN_SIZE));
 		if (rc < 0) {
-			OTA_ERR("Cannot bind IPv6 TCP addr (%d)\n", rc);
+			OTA_ERR("Cannot bind IP addr (%d)\n", rc);
 			tcp_cleanup(true);
 			return -EINVAL;
 		}
@@ -160,16 +204,17 @@ int tcp_connect(void)
 		return 0;
 	}
 
-	net_ipaddr_copy(&dst_addr.sin6_addr, &server_addr);
-	dst_addr.sin6_family = AF_INET6;
-	dst_addr.sin6_port = htons(SERVER_PORT);
+	net_addr_pton(FOTA_AF_INET, PEER_IPADDR,
+		      (struct sockaddr *)&NET_SIN_ADDR(&dst_addr));
+	NET_SIN_FAMILY(&dst_addr) = FOTA_AF_INET;
+	NET_SIN_PORT(&dst_addr) = htons(SERVER_PORT);
 
 	/* triggering the connection starts the callback sequence */
-	rc = net_context_connect(net_ctx, (struct sockaddr *)&dst_addr,
-				  sizeof(struct sockaddr_in6), NULL,
+	rc = net_context_connect(net_ctx, &dst_addr,
+				  sizeof(NET_SIN_SIZE), NULL,
 				  SERVER_CONNECT_TIMEOUT, NULL);
 	if (rc < 0) {
-		OTA_ERR("Cannot connect to IPv6 server address (%d)\n", rc);
+		OTA_ERR("Cannot connect to server (%d)\n", rc);
 		tcp_cleanup(true);
 		return -EIO;
 	}

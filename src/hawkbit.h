@@ -16,8 +16,7 @@
  */
 
 #define HAWKBIT_HOST	"gitci.com:8080"
-#define HAWKBIT_IPADDR	{{{ 0xfc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, \
-			    0xd4, 0xe7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 }}}
+#define HAWKBIT_IPADDR	"fc00::d4e7:0:0:1"
 #define HAWKBIT_PORT	8888
 #define HAWKBIT_JSON_URL "/DEFAULT/controller/v1"
 
