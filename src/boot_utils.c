@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 #include <errno.h>
+#include <string.h>
 #include <flash.h>
 #include <zephyr.h>
 
@@ -24,14 +25,57 @@
 #include "boot_utils.h"
 #include "device.h"
 
+/*
+ * Helpers for image trailer, as defined by mcuboot.
+ */
+
+#define TRAILER_IMAGE_MAGIC_SIZE	(4 * sizeof(uint32_t))
+#define TRAILER_SWAP_STATUS_SIZE	(128 * FLASH_MIN_WRITE_SIZE * 3)
+#define TRAILER_COPY_DONE_SIZE		FLASH_MIN_WRITE_SIZE
+#define TRAILER_IMAGE_OK_SIZE		FLASH_MIN_WRITE_SIZE
+
+#define TRAILER_SIZE			(TRAILER_IMAGE_MAGIC_SIZE +	\
+					 TRAILER_SWAP_STATUS_SIZE +	\
+					 TRAILER_COPY_DONE_SIZE +	\
+					 TRAILER_IMAGE_OK_SIZE)
+
+#define TRAILER_COPY_DONE		0x01
+#define TRAILER_PADDING			0xff
+
+static uint32_t boot_trailer(uint32_t bank_offset)
+{
+	return bank_offset + FLASH_BANK_SIZE - TRAILER_SIZE;
+}
+
+static uint32_t boot_trailer_magic(uint32_t bank_offset)
+{
+	return boot_trailer(bank_offset);
+}
+
+static uint32_t boot_trailer_swap_status(uint32_t bank_offset)
+{
+	return boot_trailer_magic(bank_offset) +
+		TRAILER_IMAGE_MAGIC_SIZE;
+}
+
+static uint32_t boot_trailer_copy_done(uint32_t bank_offset)
+{
+	return boot_trailer_swap_status(bank_offset) +
+		TRAILER_SWAP_STATUS_SIZE;
+}
+
+static uint32_t boot_trailer_image_ok(uint32_t bank_offset)
+{
+	return boot_trailer_copy_done(bank_offset) +
+		TRAILER_COPY_DONE_SIZE;
+}
+
 uint8_t boot_status_read(void)
 {
 	uint32_t offset;
 	uint8_t img_ok = 0;
 
-	offset = FLASH_BANK0_OFFSET + FLASH_BANK_SIZE -
-				sizeof(struct boot_img_trailer);
-	offset += (sizeof(uint32_t) + sizeof(uint8_t));
+	offset = boot_trailer_image_ok(FLASH_BANK0_OFFSET);
 	flash_read(flash_dev, offset, &img_ok, sizeof(uint8_t));
 	OTA_INFO("Current boot status %x\n", img_ok);
 
@@ -41,37 +85,43 @@ uint8_t boot_status_read(void)
 void boot_status_update(void)
 {
 	uint32_t offset;
-	uint8_t img_ok = 0;
+	/* The first byte of the Image OK area contains payload. The
+	 * rest is padded with 0xff for flash write alignment. */
+	uint8_t img_ok;
+	uint8_t update_buf[TRAILER_IMAGE_OK_SIZE];
 
-	offset = FLASH_BANK0_OFFSET + FLASH_BANK_SIZE -
-				sizeof(struct boot_img_trailer);
-	offset += (sizeof(uint32_t) + sizeof(uint8_t));
+	offset = boot_trailer_image_ok(FLASH_BANK0_OFFSET);
 	flash_read(flash_dev, offset, &img_ok, sizeof(uint8_t));
 	if (img_ok == 0xff) {
-		img_ok = 0;
+		memset(update_buf, 0xff, sizeof(update_buf));
+		update_buf[0] = 0x01;
+
 		flash_write_protection_set(flash_dev, false);
-		flash_write(flash_dev, offset, &img_ok, sizeof(uint8_t));
+		flash_write(flash_dev, offset, update_buf, sizeof(update_buf));
 		flash_write_protection_set(flash_dev, true);
-		OTA_INFO("Updated boot status to %d\n", img_ok);
+		OTA_INFO("Updated boot status to %d\n", update_buf[0]);
 	}
 }
 
 void boot_trigger_ota(void)
 {
-	uint32_t offset;
-	struct boot_img_trailer img_trailer;
+	uint32_t copy_done_offset, image_ok_offset;
+	uint8_t copy_done[TRAILER_COPY_DONE_SIZE];
+	uint8_t image_ok[TRAILER_IMAGE_OK_SIZE];
 
-	img_trailer.bit_copy_start = BOOT_IMG_MAGIC;
-	img_trailer.bit_copy_done = 0xff;
-	img_trailer.bit_img_ok = 0xff;
+	copy_done_offset = boot_trailer_copy_done(FLASH_BANK1_OFFSET);
+	image_ok_offset = boot_trailer_image_ok(FLASH_BANK1_OFFSET);
+	memset(copy_done, 0xff, sizeof(copy_done));
+	memset(image_ok, 0xff, sizeof(image_ok));
 
-	offset = FLASH_BANK1_OFFSET + FLASH_BANK_SIZE -
-				sizeof(struct boot_img_trailer);
+	OTA_INFO("Clearing bank 1 image_ok and copy_done\n");
 
-	OTA_INFO("Setting trailer magic number and copy_done\n");
 	flash_write_protection_set(flash_dev, false);
-	flash_write(flash_dev, offset, &img_trailer,
-				sizeof(struct boot_img_trailer));
+	flash_write(flash_dev, copy_done_offset, copy_done, sizeof(copy_done));
+	flash_write_protection_set(flash_dev, true);
+
+	flash_write_protection_set(flash_dev, false);
+	flash_write(flash_dev, image_ok_offset, image_ok, sizeof(image_ok));
 	flash_write_protection_set(flash_dev, true);
 }
 

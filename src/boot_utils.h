@@ -15,17 +15,6 @@
  *
  */
 
-/* Required by the bootloader in order to trigger the update */
-#define BOOT_IMG_MAGIC		0x12344321
-
-/* Defined by mynewt's bootloader */
-struct boot_img_trailer {
-	uint32_t bit_copy_start;
-	uint8_t  bit_copy_done;
-	uint8_t  bit_img_ok;
-	uint16_t _pad;
-};
-
 typedef enum {
 	BOOT_ACID_CURRENT = 0,
 	BOOT_ACID_UPDATE,
