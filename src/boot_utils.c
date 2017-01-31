@@ -92,9 +92,9 @@ void boot_status_update(void)
 
 	offset = boot_trailer_image_ok(FLASH_BANK0_OFFSET);
 	flash_read(flash_dev, offset, &img_ok, sizeof(uint8_t));
-	if (img_ok == 0xff) {
-		memset(update_buf, 0xff, sizeof(update_buf));
-		update_buf[0] = 0x01;
+	if (img_ok == BOOT_STATUS_ONGOING) {
+		memset(update_buf, TRAILER_PADDING, sizeof(update_buf));
+		update_buf[0] = BOOT_STATUS_DONE;
 
 		flash_write_protection_set(flash_dev, false);
 		flash_write(flash_dev, offset, update_buf, sizeof(update_buf));
@@ -111,8 +111,8 @@ void boot_trigger_ota(void)
 
 	copy_done_offset = boot_trailer_copy_done(FLASH_BANK1_OFFSET);
 	image_ok_offset = boot_trailer_image_ok(FLASH_BANK1_OFFSET);
-	memset(copy_done, 0xff, sizeof(copy_done));
-	memset(image_ok, 0xff, sizeof(image_ok));
+	memset(copy_done, TRAILER_PADDING, sizeof(copy_done));
+	memset(image_ok, TRAILER_PADDING, sizeof(image_ok));
 
 	OTA_INFO("Clearing bank 1 image_ok and copy_done\n");
 
