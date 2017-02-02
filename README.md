@@ -9,6 +9,9 @@ Example application that uses Hawkbit to implement FOTA.
 | 96b_nitrogen | [![Build Status](http://ci.arm64.io:8080/buildStatus/icon?job=linaro-dm-hawkbit-mqtt/PLATFORM=96b_nitrogen,ZEPHYR_SOURCE=zephyr-master)](https://ci.arm64.io/job/linaro-dm-hawkbit-mqtt/PLATFORM=96b_nitrogen,ZEPHYR_SOURCE=zephyr-master/) | [![Build Status](http://ci.arm64.io:8080/buildStatus/icon?job=linaro-dm-hawkbit-mqtt/PLATFORM=96b_nitrogen,ZEPHYR_SOURCE=zephyr-master-upstream-dev)](https://ci.arm64.io/job/linaro-dm-hawkbit-mqtt/PLATFORM=96b_nitrogen,ZEPHYR_SOURCE=zephyr-master-upstream-dev/) |
 | fdrm_k64f | [![Build Status](http://ci.arm64.io:8080/buildStatus/icon?job=linaro-dm-hawkbit-mqtt/PLATFORM=frdm_k64f,ZEPHYR_SOURCE=zephyr-master)](https://ci.arm64.io/job/linaro-dm-hawkbit-mqtt/PLATFORM=frdm_k64f,ZEPHYR_SOURCE=zephyr-master/) | [![Build Status](http://ci.arm64.io:8080/buildStatus/icon?job=linaro-dm-hawkbit-mqtt/PLATFORM=frdm_k64f,ZEPHYR_SOURCE=zephyr-master-upstream-dev)](https://ci.arm64.io/job/linaro-dm-hawkbit-mqtt/PLATFORM=frdm_k64f,ZEPHYR_SOURCE=zephyr-master-upstream-dev/) |
 
+####Dependencies
+View the build status of this project's [dependencies](dependencies.md)
+
 ##Requirements:
   * Newt's bootloader
   * Hawkbit server
