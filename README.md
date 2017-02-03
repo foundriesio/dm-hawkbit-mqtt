@@ -24,7 +24,7 @@ View the build status of this project's [dependencies](dependencies.md)
 
 ##Creating and signing the image:
 
-Check https://collaborate.linaro.org/display/MET/Dual+bank+boot+with+RSA for
+Check https://collaborate.linaro.org/display/LTD/IoT+Device for
 the complete overview.
 
 
