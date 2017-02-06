@@ -143,6 +143,7 @@ uint32_t boot_acid_read(boot_acid_t type)
 void boot_acid_update(boot_acid_t type, uint32_t acid)
 {
 	struct boot_acid boot_acid;
+	int ret;
 
 	flash_read(flash_dev, FLASH_STATE_OFFSET, &boot_acid,
 					sizeof(boot_acid));
@@ -151,13 +152,22 @@ void boot_acid_update(boot_acid_t type, uint32_t acid)
 	} else {
 		boot_acid.current = acid;
 	}
-	flash_erase(flash_dev, FLASH_STATE_OFFSET, FLASH_STATE_SIZE);
-	flash_write_protection_set(flash_dev, false);
-	flash_write(flash_dev, FLASH_STATE_OFFSET, &boot_acid,
-					sizeof(boot_acid));
-	flash_write_protection_set(flash_dev, true);
-	OTA_INFO("ACID updated, current %d, update %d\n",
-			boot_acid.current, boot_acid.update);
+
+	ret = flash_erase(flash_dev, FLASH_STATE_OFFSET, FLASH_STATE_SIZE);
+	if (!ret) {
+		flash_write_protection_set(flash_dev, false);
+		ret = flash_write(flash_dev, FLASH_STATE_OFFSET, &boot_acid,
+				  sizeof(boot_acid));
+		flash_write_protection_set(flash_dev, true);
+		if (!ret) {
+			OTA_INFO("ACID updated, current %d, update %d\n",
+				 boot_acid.current, boot_acid.update);
+		} else {
+			OTA_ERR("flash_write error %d\n", ret);
+		}
+	} else {
+		OTA_ERR("flash_erase error %d\n", ret);
+	}
 }
 
 int boot_erase_flash_bank(uint32_t bank_offset)
@@ -168,6 +178,8 @@ int boot_erase_flash_bank(uint32_t bank_offset)
 	if (!ret) {
 		OTA_DBG("Flash bank (offset %x) erased successfully\n",
 					bank_offset);
+	} else {
+		OTA_ERR("flash_erase error %d\n", ret);
 	}
 
 	return ret;
