@@ -365,7 +365,7 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 
 	/* Everything looks good, so fetch and flash */
 
-	len = ret;
+	len = read_bytes;
 	if (len > http_header_size) {
 		len -= http_header_size;
 		ret = flash_block_write(flash_dev, FLASH_BANK1_OFFSET,
