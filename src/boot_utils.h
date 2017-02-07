@@ -22,6 +22,22 @@ typedef enum {
 boot_status_t boot_status_read(void);
 void boot_status_update(void);
 void boot_trigger_ota(void);
-uint32_t boot_acid_read(boot_acid_t type);
+
+void boot_acid_read(struct boot_acid *boot_acid);
 void boot_acid_update(boot_acid_t type, uint32_t acid);
+
+static inline uint32_t boot_acid_read_current(void)
+{
+	struct boot_acid acid;
+	boot_acid_read(&acid);
+	return acid.current;
+}
+
+static inline uint32_t boot_acid_read_update(void)
+{
+	struct boot_acid acid;
+	boot_acid_read(&acid);
+	return acid.update;
+}
+
 int boot_erase_flash_bank(uint32_t bank_offset);

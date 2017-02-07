@@ -71,7 +71,7 @@ static void fota_service(void)
 	}
 
 	/* Update boot status and acid */
-	acid = boot_acid_read(BOOT_ACID_UPDATE);
+	acid = boot_acid_read_update();
 	if (boot_status_read() == BOOT_STATUS_ONGOING) {
 		boot_status_update();
 		boot_erase_flash_bank(FLASH_BANK1_OFFSET);

@@ -596,6 +596,7 @@ int hawkbit_ddi_poll(void)
 	int i, ret, len, ntk;
 	static hawkbit_update_action_t hawkbit_update_action;
 	static int hawkbit_acid = 0;
+	struct boot_acid boot_acid;
 	struct json_data_t json = { NULL, 0 };
 	char deployment_base[40];	/* TODO: Find a better value */
 	char download_http[200];	/* TODO: Find a better value */
@@ -791,14 +792,16 @@ int hawkbit_ddi_poll(void)
 		}
 	}
 
-	if (boot_acid_read(BOOT_ACID_CURRENT) == hawkbit_acid) {
+	boot_acid_read(&boot_acid);
+
+	if (boot_acid.current == hawkbit_acid) {
 		/* We are coming from a successful flash, update the server */
 		hawkbit_report_update_status(hawkbit_acid,
 					     tcp_buf, TCP_RECV_BUF_SIZE,
 					     HAWKBIT_RESULT_SUCCESS,
 					     HAWKBIT_EXEC_CLOSED);
 		return 0;
-	} else if (boot_acid_read(BOOT_ACID_UPDATE) == hawkbit_acid) {
+	} else if (boot_acid.update == hawkbit_acid) {
 		/* There was already an atempt, so announce a failure */
 		hawkbit_report_update_status(hawkbit_acid,
 					     tcp_buf, TCP_RECV_BUF_SIZE,
