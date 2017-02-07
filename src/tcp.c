@@ -250,13 +250,13 @@ int tcp_send(const unsigned char *buf, size_t size)
 	if (rc < 0)
 		return rc;
 
-	send_buf = net_nbuf_get_tx(net_ctx);
+	send_buf = net_nbuf_get_tx(net_ctx, K_FOREVER);
 	if (!send_buf) {
 		OTA_ERR("cannot create buf\n");
 		return -EIO;
 	}
 
-	rc = net_nbuf_append(send_buf, size, (uint8_t *) buf);
+	rc = net_nbuf_append(send_buf, size, (uint8_t *) buf, K_FOREVER);
 	if (!rc) {
 		OTA_ERR("cannot write buf\n");
 		net_nbuf_unref(send_buf);
