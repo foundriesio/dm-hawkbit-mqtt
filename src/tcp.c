@@ -263,9 +263,8 @@ int tcp_send(const unsigned char *buf, size_t size)
 	}
 
 	len = net_buf_frags_len(send_buf);
-	k_sleep(TCP_TX_TIMEOUT);
 
-	rc = net_context_send(send_buf, NULL, K_FOREVER, NULL, NULL);
+	rc = net_context_send(send_buf, NULL, TCP_TX_TIMEOUT, NULL, NULL);
 	net_nbuf_unref(send_buf);
 	if (rc < 0) {
 		OTA_ERR("Cannot send data to peer (%d)\n", rc);
