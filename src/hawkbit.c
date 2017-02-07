@@ -309,7 +309,10 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 		return -EINVAL;
 	}
 
-	if (flash_erase(flash_dev, FLASH_BANK1_OFFSET, FLASH_BANK_SIZE) != 0) {
+	flash_write_protection_set(flash_dev, false);
+	ret = flash_erase(flash_dev, FLASH_BANK1_OFFSET, FLASH_BANK_SIZE);
+	flash_write_protection_set(flash_dev, true);
+	if (ret != 0) {
 		OTA_ERR("Failed to erase flash at offset %x, size %d\n",
 					FLASH_BANK1_OFFSET, FLASH_BANK_SIZE);
 		return -EIO;

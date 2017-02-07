@@ -142,7 +142,9 @@ void boot_acid_update(boot_acid_t type, uint32_t acid)
 		boot_acid.current = acid;
 	}
 
+	flash_write_protection_set(flash_dev, false);
 	ret = flash_erase(flash_dev, FLASH_STATE_OFFSET, FLASH_STATE_SIZE);
+	flash_write_protection_set(flash_dev, true);
 	if (!ret) {
 		flash_write_protection_set(flash_dev, false);
 		ret = flash_write(flash_dev, FLASH_STATE_OFFSET, &boot_acid,
@@ -163,7 +165,9 @@ int boot_erase_flash_bank(uint32_t bank_offset)
 {
 	int ret;
 
+	flash_write_protection_set(flash_dev, false);
 	ret = flash_erase(flash_dev, bank_offset, FLASH_BANK_SIZE);
+	flash_write_protection_set(flash_dev, true);
 	if (!ret) {
 		OTA_DBG("Flash bank (offset %x) erased successfully\n",
 					bank_offset);
