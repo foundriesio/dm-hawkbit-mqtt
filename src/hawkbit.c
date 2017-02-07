@@ -39,11 +39,16 @@
  *
  */
 uint8_t tcp_buf[TCP_RECV_BUF_SIZE];
-static uint16_t read_bytes = 0;
 
-static int downloaded_size = 0;
-static size_t http_header_size = 0;
-static size_t http_content_size = 0;
+struct hawkbit_download {
+	size_t http_header_size;
+	size_t http_header_read;
+	size_t http_content_size;
+	int header_status;
+	size_t downloaded_size;
+	size_t download_progress;
+	int download_status;
+};
 
 struct json_data_t {
 	char *data;
@@ -188,7 +193,7 @@ static void hawkbit_header_cb(struct net_context *context,
 			      struct net_buf *buf,
 			      int status, void *user_data)
 {
-	int *buffer_status = (int *)user_data;
+	struct hawkbit_download *hbd = user_data;
 	struct net_buf *rx_buf;
 	uint8_t *ptr;
 	int len;
@@ -198,7 +203,7 @@ static void hawkbit_header_cb(struct net_context *context,
 
 	if (!buf) {
 		OTA_ERR("Download: EARLY end of buffer\n");
-		*buffer_status = -1;
+		hbd->header_status = -1;
 		k_sem_give(tcp_get_recv_wait_sem());
 		return;
 	}
@@ -210,9 +215,9 @@ static void hawkbit_header_cb(struct net_context *context,
 
 		while (rx_buf) {
 			/* handle data */
-			memcpy(tcp_buf + read_bytes, ptr, len);
-			read_bytes += len;
-			tcp_buf[read_bytes] = 0;
+			memcpy(tcp_buf + hbd->http_header_read, ptr, len);
+			hbd->http_header_read += len;
+			tcp_buf[hbd->http_header_read] = 0;
 
 			rx_buf = rx_buf->frags;
 			if (!rx_buf) {
@@ -225,7 +230,6 @@ static void hawkbit_header_cb(struct net_context *context,
 	}
 
 	net_nbuf_unref(buf);
-	*buffer_status = read_bytes;
 
 	http_parser_init(&parser, HTTP_RESPONSE);
 	http_parser_settings_init(&http_settings);
@@ -233,18 +237,18 @@ static void hawkbit_header_cb(struct net_context *context,
 	parser.data = &http_data;
 
 	/* Parse the HTTP headers available from the first buffer */
-	http_parser_execute(&parser, &http_settings,
-				(const char *) tcp_buf, read_bytes);
+	http_parser_execute(&parser, &http_settings, (const char *) tcp_buf,
+				hbd->http_header_read);
 
 	if (parser.status_code > 0 && parser.status_code != 200) {
 		OTA_ERR("Download: http error %d\n",
 			parser.status_code);
-		*buffer_status = -1;
+		hbd->header_status = -1;
 	} else if (http_data.content_length > 0 &&
 		   parser.http_errno != HPE_INVALID_HEADER_TOKEN) {
-		http_header_size = http_data.header_size;
-		http_content_size = http_data.content_length;
-		*buffer_status = 1;
+		hbd->http_header_size = http_data.header_size;
+		hbd->http_content_size = http_data.content_length;
+		hbd->header_status = 1;
 		k_sem_give(tcp_get_recv_wait_sem());
 	}
 }
@@ -253,15 +257,15 @@ static void hawkbit_download_cb(struct net_context *context,
 				struct net_buf *buf,
 				int status, void *user_data)
 {
-	int *buffer_status = (int *)user_data;
+	struct hawkbit_download *hbd = user_data;
 	struct net_buf *rx_buf;
 	uint8_t *ptr;
-	int len;
+	int len, downloaded;
 
 	if (!buf) {
 		/* handle end of stream */
 		k_sem_give(tcp_get_recv_wait_sem());
-		*buffer_status = 1;
+		hbd->download_status = 1;
 		return;
 	}
 
@@ -269,11 +273,18 @@ static void hawkbit_download_cb(struct net_context *context,
 	ptr = net_nbuf_appdata(buf);
 	len = rx_buf->len - (ptr - rx_buf->data);
 
-	while (rx_buf && *buffer_status == 0) {
+	while (rx_buf && hbd->download_status == 0) {
 		/* handle data */
 		if (flash_block_write(flash_dev, FLASH_BANK1_OFFSET,
-				      &downloaded_size, ptr, len, false) < 0) {
-			*buffer_status = -1;
+				      &hbd->downloaded_size, ptr,
+				      len, false) < 0) {
+			hbd->download_status = -1;
+		}
+		downloaded = hbd->downloaded_size * 100 /
+				hbd->http_content_size;
+		if (downloaded > hbd->download_progress) {
+			hbd->download_progress = downloaded;
+			OTA_DBG("%d%%\n", hbd->download_progress);
 		}
 
 		rx_buf = rx_buf->frags;
@@ -291,6 +302,7 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 				  const char *download_http,
 				  size_t file_size)
 {
+	struct hawkbit_download hbd;
 	int ret, len;
 
 	if (!tcp_buffer || !download_http || !file_size) {
@@ -302,11 +314,6 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 					FLASH_BANK1_OFFSET, FLASH_BANK_SIZE);
 		return -EIO;
 	}
-
-	downloaded_size = 0;
-	http_header_size = 0;
-	http_content_size = 0;
-	read_bytes = 0;
 
 	OTA_INFO("Starting the download and flash process\n");
 
@@ -326,40 +333,39 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 
 	/* Receive is special for download, since it writes to flash */
 	memset(tcp_buf, 0, TCP_RECV_BUF_SIZE);
+	memset(&hbd, 0, sizeof(struct hawkbit_download));
 
 	if (tcp_connect() < 0) {
 		ret = -1;
 		goto error_cleanup;
 	}
 
-	ret = 0;
 	net_context_recv(tcp_get_context(), hawkbit_header_cb,
-			 K_NO_WAIT, (void *)&ret);
+			 K_NO_WAIT, (void *)&hbd);
 
 	/* wait here for the connection to complete or timeout */
 	k_sem_take(tcp_get_recv_wait_sem(), K_SECONDS(3));
-	if (ret < 0) {
+	if (hbd.header_status < 0) {
 		OTA_ERR("Unable to start the download process %d\n",
 			ret);
+		ret = -1;
 		goto error_cleanup;
 	}
 
-	if (http_content_size != file_size) {
+	if (hbd.http_content_size != file_size) {
 		OTA_ERR("Download: file size not the same as reported, "
 			"found %d, expecting %d\n",
-			http_content_size, file_size);
+			hbd.http_content_size, file_size);
 		ret = -1;
 		goto error_cleanup;
 	}
 
 	/* Everything looks good, so fetch and flash */
-
-	len = read_bytes;
-	if (len > http_header_size) {
-		len -= http_header_size;
+	if (hbd.http_header_read > hbd.http_header_size) {
+		len = hbd.http_header_read - hbd.http_header_size;
 		ret = flash_block_write(flash_dev, FLASH_BANK1_OFFSET,
-				      &downloaded_size,
-				      tcp_buffer + http_header_size,
+				      &hbd.downloaded_size,
+				      tcp_buffer + hbd.http_header_size,
 				      len, false);
 		if (ret < 0) {
 			goto error_cleanup;
@@ -367,19 +373,17 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 	}
 
 	/* wait here for the connection to complete or timeout */
-	ret = 0;
 	do {
-		OTA_DBG("%d%%\n", (downloaded_size*100) / file_size);
-
 		net_context_recv(tcp_get_context(),
 				 hawkbit_download_cb, K_NO_WAIT,
-				 (void *)&ret);
-	} while (ret >= 0 &&
+				 (void *)&hbd);
+	} while (hbd.download_status >= 0 &&
 		 k_sem_take(tcp_get_recv_wait_sem(), K_SECONDS(1)) != 0);
 
-	if (ret < 0) {
+	if (hbd.download_status < 0) {
 		OTA_ERR("Unable to finish the download process %d\n",
-			ret);
+			hbd.download_status);
+		ret = -1;
 		goto error_cleanup;
 	}
 
@@ -391,18 +395,18 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 	 * downloaded_size will be incorrect and OTA will fail.
 	 */
 	flash_block_write(flash_dev, FLASH_BANK1_OFFSET,
-			  &downloaded_size, NULL, 0, true);
+			  &hbd.downloaded_size, NULL, 0, true);
 
 	tcp_cleanup(true);
 
-	if (downloaded_size != file_size) {
+	if (hbd.downloaded_size != hbd.http_content_size) {
 		OTA_ERR("Download: downloaded image size mismatch, "
 				"downloaded %d, expecting %d\n",
-				downloaded_size, file_size);
+				hbd.downloaded_size, hbd.http_content_size);
 		return -1;
 	}
 
-	OTA_INFO("Download: downloaded bytes %d\n", downloaded_size);
+	OTA_INFO("Download: downloaded bytes %d\n", hbd.downloaded_size);
 
 	return 0;
 
