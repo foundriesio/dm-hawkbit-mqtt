@@ -79,6 +79,7 @@ static void tcp_received_cb(struct net_context *context,
 
 	/* handle FIN packet */
 	if (!buf) {
+		OTA_DBG("FIN received, closing network context\n");
 		/* clear out our reference to the network connection */
 		tcp_cleanup(false);
 		k_sem_give(&sem_recv_wait);
