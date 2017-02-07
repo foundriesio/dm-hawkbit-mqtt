@@ -160,12 +160,6 @@ int boot_erase_flash_bank(uint32_t bank_offset)
 	flash_write_protection_set(flash_dev, false);
 	ret = flash_erase(flash_dev, bank_offset, FLASH_BANK_SIZE);
 	flash_write_protection_set(flash_dev, true);
-	if (!ret) {
-		OTA_DBG("Flash bank (offset %x) erased successfully\n",
-					bank_offset);
-	} else {
-		OTA_ERR("flash_erase error %d\n", ret);
-	}
 
 	return ret;
 }

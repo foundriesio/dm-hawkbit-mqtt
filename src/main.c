@@ -77,7 +77,13 @@ static void fota_service(void)
 	OTA_INFO("Current boot status %x\n", boot_status);
 	if (boot_status == BOOT_STATUS_ONGOING) {
 		boot_status_update();
-		boot_erase_flash_bank(FLASH_BANK1_OFFSET);
+		ret = boot_erase_flash_bank(FLASH_BANK1_OFFSET);
+		if (ret) {
+			OTA_ERR("flash_erase error %d\n", ret);
+		} else {
+			OTA_DBG("Flash bank (offset %x) erased successfully\n",
+				FLASH_BANK1_OFFSET);
+		}
 		if (acid != -1) {
 			boot_acid_update(BOOT_ACID_CURRENT, acid);
 		}
