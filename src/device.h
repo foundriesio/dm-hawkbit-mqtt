@@ -52,9 +52,21 @@
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 #define UNKNOWN_APPEARANCE 0x0000
 
-/* General hardware specific configs */
-#if defined(CONFIG_SOC_SERIES_STM32F4X)
-#define DEVICE_ID_BASE	0x1fff7a10
+/*
+ * General hardware specific configs
+ *
+ * DEVICE_ID_BASE  : beginning of HW UID registers
+ * DEVICE_ID_LENGTH: length of HW UID registers in 32-bit words
+ */
+#if defined(CONFIG_SOC_SERIES_NRF52X)
+#define DEVICE_ID_BASE		(&NRF_FICR->DEVICEID[0])
+#define DEVICE_ID_LENGTH	2
+#elif defined(CONFIG_SOC_SERIES_STM32F4X)
+#define DEVICE_ID_BASE		UID_BASE
+#define DEVICE_ID_LENGTH	3
+#elif defined(CONFIG_SOC_SERIES_KINETIS_K6X)
+#define DEVICE_ID_BASE		(&SIM->UIDH)
+#define DEVICE_ID_LENGTH	4
 #endif
 
 struct product_id_t {
