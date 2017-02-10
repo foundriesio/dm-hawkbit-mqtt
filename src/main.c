@@ -22,7 +22,7 @@
 char threadStack[STACKSIZE];
 
 #define MAX_POLL_FAIL	5
-int poll_sleep = K_SECONDS(15);
+int poll_sleep = K_SECONDS(30);
 struct device *flash_dev;
 
 #if defined(CONFIG_BLUETOOTH)
