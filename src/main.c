@@ -58,6 +58,7 @@ static void fota_service(void)
 {
 	uint32_t failed_poll = 0;
 	uint32_t acid;
+	uint8_t boot_status;
 	int ret;
 
 	OTA_INFO("Starting FOTA Service Thread\n");
@@ -72,7 +73,9 @@ static void fota_service(void)
 
 	/* Update boot status and acid */
 	acid = boot_acid_read_update();
-	if (boot_status_read() == BOOT_STATUS_ONGOING) {
+	boot_status = boot_status_read();
+	OTA_INFO("Current boot status %x\n", boot_status);
+	if (boot_status == BOOT_STATUS_ONGOING) {
 		boot_status_update();
 		boot_erase_flash_bank(FLASH_BANK1_OFFSET);
 		if (acid != -1) {

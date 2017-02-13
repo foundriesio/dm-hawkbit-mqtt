@@ -66,7 +66,6 @@ uint8_t boot_status_read(void)
 
 	offset = boot_trailer_image_ok(FLASH_BANK0_OFFSET);
 	flash_read(flash_dev, offset, &img_ok, sizeof(uint8_t));
-	OTA_INFO("Current boot status %x\n", img_ok);
 
 	return img_ok;
 }
