@@ -53,6 +53,21 @@ static struct bt_conn_cb conn_callbacks = {
 };
 #endif
 
+static void fota_service_update_acid(struct boot_acid *acid)
+{
+	int ret;
+	if (acid->update != -1) {
+		ret = boot_acid_update(BOOT_ACID_CURRENT, acid->update);
+		if (!ret) {
+			boot_acid_read(acid);
+			OTA_INFO("ACID updated, current %d, update %d\n",
+				 acid->current, acid->update);
+		} else {
+			OTA_ERR("Failed to update ACID: %d\n", ret);
+		}
+	}
+}
+
 /* Firmware OTA thread (Hawkbit) */
 static void fota_service(void)
 {
@@ -87,16 +102,7 @@ static void fota_service(void)
 			OTA_DBG("Flash bank (offset %x) erased successfully\n",
 				FLASH_BANK1_OFFSET);
 		}
-		if (acid.update != -1) {
-			ret = boot_acid_update(BOOT_ACID_CURRENT, acid.update);
-			if (!ret) {
-				boot_acid_read(&acid);
-				OTA_INFO("ACID updated, current %d, update %d\n",
-					 acid.current, acid.update);
-			} else {
-				OTA_ERR("Failed to update ACID: %d\n", ret);
-			}
-		}
+		fota_service_update_acid(&acid);
 	}
 
 	TC_END_RESULT(TC_PASS);
