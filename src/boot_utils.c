@@ -10,7 +10,6 @@
 #include <flash.h>
 #include <zephyr.h>
 
-#include "ota_debug.h"
 #include "boot_utils.h"
 #include "device.h"
 
