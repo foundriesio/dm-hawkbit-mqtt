@@ -101,8 +101,6 @@ void boot_trigger_ota(void)
 	memset(copy_done, TRAILER_PADDING, sizeof(copy_done));
 	memset(image_ok, TRAILER_PADDING, sizeof(image_ok));
 
-	OTA_INFO("Clearing bank 1 image_ok and copy_done\n");
-
 	flash_write_protection_set(flash_dev, false);
 	flash_write(flash_dev, copy_done_offset, copy_done, sizeof(copy_done));
 	flash_write_protection_set(flash_dev, true);
