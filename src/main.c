@@ -88,7 +88,14 @@ static void fota_service(void)
 				FLASH_BANK1_OFFSET);
 		}
 		if (acid.update != -1) {
-			boot_acid_update(BOOT_ACID_CURRENT, acid.update);
+			ret = boot_acid_update(BOOT_ACID_CURRENT, acid.update);
+			if (!ret) {
+				boot_acid_read(&acid);
+				OTA_INFO("ACID updated, current %d, update %d\n",
+					 acid.current, acid.update);
+			} else {
+				OTA_ERR("Failed to update ACID: %d\n", ret);
+			}
 		}
 	}
 

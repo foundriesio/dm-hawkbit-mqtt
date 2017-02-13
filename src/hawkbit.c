@@ -848,7 +848,11 @@ int hawkbit_ddi_poll(void)
 
 	OTA_INFO("Triggering OTA update.\n");
 	boot_trigger_ota();
-	boot_acid_update(BOOT_ACID_UPDATE, hawkbit_acid);
+	ret = boot_acid_update(BOOT_ACID_UPDATE, hawkbit_acid);
+	if (ret != 0) {
+		OTA_ERR("Failed to update ACID: %d\n", ret);
+		return -1;
+	}
 	OTA_INFO("Image id %d flashed successfuly, rebooting now\n",
 					hawkbit_acid);
 
