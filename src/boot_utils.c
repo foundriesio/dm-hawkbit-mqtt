@@ -114,8 +114,6 @@ void boot_acid_read(struct boot_acid *boot_acid)
 {
 	flash_read(flash_dev, FLASH_STATE_OFFSET, boot_acid,
 					sizeof(*boot_acid));
-	OTA_INFO("ACID: current %d, update %d\n", boot_acid->current,
-					boot_acid->update);
 }
 
 void boot_acid_update(boot_acid_t type, uint32_t acid)

@@ -57,7 +57,7 @@ static struct bt_conn_cb conn_callbacks = {
 static void fota_service(void)
 {
 	uint32_t failed_poll = 0;
-	uint32_t acid;
+	struct boot_acid acid;
 	uint8_t boot_status;
 	int ret;
 
@@ -72,7 +72,9 @@ static void fota_service(void)
 	}
 
 	/* Update boot status and acid */
-	acid = boot_acid_read_update();
+	boot_acid_read(&acid);
+	OTA_INFO("ACID: current %d, update %d\n",
+		 acid.current, acid.update);
 	boot_status = boot_status_read();
 	OTA_INFO("Current boot status %x\n", boot_status);
 	if (boot_status == BOOT_STATUS_ONGOING) {
@@ -85,8 +87,8 @@ static void fota_service(void)
 			OTA_DBG("Flash bank (offset %x) erased successfully\n",
 				FLASH_BANK1_OFFSET);
 		}
-		if (acid != -1) {
-			boot_acid_update(BOOT_ACID_CURRENT, acid);
+		if (acid.update != -1) {
+			boot_acid_update(BOOT_ACID_CURRENT, acid.update);
 		}
 	}
 
