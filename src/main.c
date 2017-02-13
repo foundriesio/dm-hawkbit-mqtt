@@ -77,6 +77,7 @@ static void fota_service(void)
 	OTA_INFO("Current boot status %x\n", boot_status);
 	if (boot_status == BOOT_STATUS_ONGOING) {
 		boot_status_update();
+		OTA_INFO("Updated boot status to %x\n", boot_status_read());
 		ret = boot_erase_flash_bank(FLASH_BANK1_OFFSET);
 		if (ret) {
 			OTA_ERR("flash_erase error %d\n", ret);

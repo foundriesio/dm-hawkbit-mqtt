@@ -87,7 +87,6 @@ void boot_status_update(void)
 		flash_write_protection_set(flash_dev, false);
 		flash_write(flash_dev, offset, update_buf, sizeof(update_buf));
 		flash_write_protection_set(flash_dev, true);
-		OTA_INFO("Updated boot status to %d\n", update_buf[0]);
 	}
 }
 
