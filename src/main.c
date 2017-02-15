@@ -37,6 +37,11 @@ static void connected(struct bt_conn *conn, uint8_t err)
 		printk("BT LE Connected\n");
 		bt_connection_state = true;
 		set_bluetooth_led(1);
+		err = ipss_set_connected();
+		if (err) {
+			printk("BT LE connection name change"
+			       " failed (err %u)\n", err);
+		}
 	}
 }
 

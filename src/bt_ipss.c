@@ -93,11 +93,67 @@ static const struct bt_data sd[] = {
 	BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
 };
 
+static const struct bt_data sd_connected[] = {
+	BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_CONNECTED_NAME,
+		DEVICE_CONNECTED_NAME_LEN),
+};
+
 void ipss_init(struct bt_conn_cb *conn_callbacks)
 {
 	bt_gatt_register(attrs, ARRAY_SIZE(attrs));
 	bt_conn_cb_register(conn_callbacks);
 	TC_END_RESULT(TC_PASS);
+}
+
+/* local copy of set_ad() in subsys/bluetooth/host/hci_core */
+static int ipss_set_ad(uint16_t hci_op, const struct bt_data *ad, size_t ad_len)
+{
+	struct bt_hci_cp_le_set_adv_data *set_data;
+	struct net_buf *buf;
+	int i;
+
+	buf = bt_hci_cmd_create(hci_op, sizeof(*set_data));
+	if (!buf) {
+		return -ENOBUFS;
+	}
+
+	set_data = net_buf_add(buf, sizeof(*set_data));
+
+	memset(set_data, 0, sizeof(*set_data));
+
+	for (i = 0; i < ad_len; i++) {
+		/* Check if ad fit in the remaining buffer */
+		if (set_data->len + ad[i].data_len + 2 > 31) {
+			net_buf_unref(buf);
+			return -EINVAL;
+		}
+
+		set_data->data[set_data->len++] = ad[i].data_len + 1;
+		set_data->data[set_data->len++] = ad[i].type;
+
+		memcpy(&set_data->data[set_data->len], ad[i].data,
+		       ad[i].data_len);
+		set_data->len += ad[i].data_len;
+	}
+
+	return bt_hci_cmd_send_sync(hci_op, buf, NULL);
+}
+
+int ipss_set_connected(void)
+{
+	int err = 0;
+
+	/*
+	 * Clearing BT_HCI_OP_LE_SET_SCAN_RSP_DATA is done by calling
+	 * set_ad() with NULL data and zero len.
+	 */
+	err = ipss_set_ad(BT_HCI_OP_LE_SET_SCAN_RSP_DATA, NULL, 0);
+	if (!err) {
+		err = ipss_set_ad(BT_HCI_OP_LE_SET_SCAN_RSP_DATA,
+				  sd_connected, ARRAY_SIZE(sd_connected));
+	}
+
+	return err;
 }
 
 int ipss_advertise(void)
