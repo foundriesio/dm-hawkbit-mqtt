@@ -19,6 +19,8 @@
 #include "boot_utils.h"
 #if (CONFIG_DM_BACKEND == BACKEND_HAWKBIT)
 #include "hawkbit.h"
+#elif (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
+#include "bluemix.h"
 #endif
 #include "device.h"
 #include "tcp.h"
@@ -82,6 +84,9 @@ static int fota_service_update_acid(struct boot_acid *acid)
 /* Firmware OTA thread (Hawkbit) */
 static void fota_service(void)
 {
+#if (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
+	static int bluemix_inited = 0;
+#endif
 	uint32_t failed_poll = 0;
 	struct boot_acid acid;
 	uint8_t boot_status;
@@ -148,6 +153,24 @@ static void fota_service(void)
 		} else {
 			/* restart the failed attempt counter */
 			failed_poll = 0;
+		}
+#elif (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
+		if (!bluemix_inited) {
+			ret = bluemix_init();
+			if (!ret) {
+				bluemix_inited = 1;
+				/* restart the failed attempt counter */
+				failed_poll = 0;
+			} else {
+				failed_poll++;
+				OTA_DBG("Failed init - attempt %d\n\n\n",
+					failed_poll);
+				if (failed_poll == MAX_POLL_FAIL) {
+					printk("Too many unsuccessful bluemix init attempts,"
+							" rebooting!\n");
+					sys_reboot(0);
+				}
+			}
 		}
 #endif
 
