@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "config.h"
+
 #include <stdint.h>
 #include <stddef.h>
 #include <errno.h>
@@ -16,7 +18,9 @@
 
 #include "ota_debug.h"
 #include "tcp.h"
+#if (CONFIG_DM_BACKEND == BACKEND_HAWKBIT)
 #include "hawkbit.h"
+#endif
 
 #define SERVER_CONNECT_TIMEOUT		K_SECONDS(5)
 #define SERVER_CONNECT_MAX_WAIT_COUNT	2
@@ -44,11 +48,10 @@
 #define LOCAL_IPADDR		CONFIG_NET_SAMPLES_MY_IPV4_ADDR
 #define PEER_IPADDR		CONFIG_NET_SAMPLES_PEER_IPV4_ADDR
 #endif
+#define SERVER_PORT		HAWKBIT_PORT
 
 /* Global address to be set from RA */
 static struct sockaddr client_addr;
-
-#define SERVER_PORT	HAWKBIT_PORT
 
 static struct net_context *net_ctx = { 0 };
 

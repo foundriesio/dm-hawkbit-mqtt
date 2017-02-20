@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "config.h"
+
+#if (CONFIG_DM_BACKEND == BACKEND_HAWKBIT)
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -862,3 +866,5 @@ int hawkbit_ddi_poll(void)
 
 	return 0;
 }
+
+#endif /* (CONFIG_DM_BACKEND == BACKEND_HAWKBIT) */

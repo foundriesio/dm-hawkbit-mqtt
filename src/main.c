@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "config.h"
+
 #include <bluetooth/conn.h>
 #include <misc/stack.h>
 #include <gpio.h>
@@ -15,7 +17,9 @@
 #include "bt_ipss.h"
 #include "ota_debug.h"
 #include "boot_utils.h"
+#if (CONFIG_DM_BACKEND == BACKEND_HAWKBIT)
 #include "hawkbit.h"
+#endif
 #include "device.h"
 #include "tcp.h"
 
@@ -131,6 +135,7 @@ static void fota_service(void)
 		}
 #endif
 
+#if (CONFIG_DM_BACKEND == BACKEND_HAWKBIT)
 		ret = hawkbit_ddi_poll();
 		if (ret < 0) {
 			failed_poll++;
@@ -144,6 +149,7 @@ static void fota_service(void)
 			/* restart the failed attempt counter */
 			failed_poll = 0;
 		}
+#endif
 
 		stack_analyze("FOTA Thread", threadStack, STACKSIZE);
 	} while (1);
