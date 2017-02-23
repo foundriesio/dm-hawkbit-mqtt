@@ -12,6 +12,6 @@
 
 #define CONFIG_DM_BACKEND		BACKEND_HAWKBIT
 
-#define CONFIG_BLUEMIX_ORG		"unknown"
+#define CONFIG_BLUEMIX_ORG		"mstsez"
 
 #endif /* __FOTA_CONFIG_H_ */
