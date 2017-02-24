@@ -221,13 +221,6 @@ int bluemix_init(struct bluemix_ctx *ctx)
 		goto out;
 	}
 
-	/*
-	 * TODO: Now that we are connected:
-	 * device registration
-	 * push POWER event
-	 * management subscription
-	 */
-
 	OTA_DBG("subscribing to command and DM topics\n");
 	INIT_DEVICE_TOPIC(ctx, "iot-2/type/%s/id/%s/cmd/+/fmt/+");
 	ret = subscribe_to_topic(ctx);
@@ -251,7 +244,6 @@ int bluemix_init(struct bluemix_ctx *ctx)
 		goto out;
 	}
 
-	/* PING */
 	OTA_DBG("Sending first ping\n");
 	ret = mqtt_tx_pingreq(&ctx->mqtt_ctx);
 	if (ret) {
