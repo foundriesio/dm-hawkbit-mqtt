@@ -161,7 +161,9 @@ static void build_manage_request(struct mqtt_publish_msg *pub_msg,
 	memset(buffer, 0, size);
 	helper = buffer;
 
-	snprintf(topic, sizeof(topic), "iotdevice-1/mgmt/manage");
+	snprintf(topic, sizeof(topic),
+		 "iotdevice-1/type/%s/id/%08x/mgmt/manage",
+		 CONFIG_BLUEMIX_DEVICE_TYPE, product_id.number);
 	snprintf(helper, size,
 	"{"
 		"\"d\":{"
