@@ -30,6 +30,7 @@
 
 #define BLUEMIX_USERNAME "use-token-auth"
 
+static uint8_t my_bluemix_id[30];	/* Set in bluemix_init(). */
 static uint8_t json_buf[1024];
 static uint8_t topic[255];
 
@@ -137,8 +138,8 @@ static char *build_clientid(void)
 	static char clientid[50];
 
 	snprintf(clientid, sizeof(clientid),
-		"d:%s:%s:%x", CONFIG_BLUEMIX_ORG, CONFIG_BLUEMIX_DEVICE_TYPE,
-		product_id.number);
+		"d:%s:%s:%s", CONFIG_BLUEMIX_ORG, CONFIG_BLUEMIX_DEVICE_TYPE,
+		my_bluemix_id);
 
 	return clientid;
 }
@@ -162,8 +163,8 @@ static void build_manage_request(struct mqtt_publish_msg *pub_msg,
 	helper = buffer;
 
 	snprintf(topic, sizeof(topic),
-		 "iotdevice-1/type/%s/id/%08x/mgmt/manage",
-		 CONFIG_BLUEMIX_DEVICE_TYPE, product_id.number);
+		 "iotdevice-1/type/%s/id/%s/mgmt/manage",
+		 CONFIG_BLUEMIX_DEVICE_TYPE, my_bluemix_id);
 	snprintf(helper, size,
 	"{"
 		"\"d\":{"
@@ -196,8 +197,8 @@ static void build_publish_test(struct mqtt_publish_msg *pub_msg,
 	helper = buffer;
 
 	snprintf(topic, sizeof(topic),
-		"iot-2/type/%s/id/%08x/evt/status/fmt/json",
-		CONFIG_BLUEMIX_DEVICE_TYPE, product_id.number);
+		"iot-2/type/%s/id/%s/evt/status/fmt/json",
+		CONFIG_BLUEMIX_DEVICE_TYPE, my_bluemix_id);
 	snprintf(helper, size,
 		"{"
 			"d:{"
@@ -217,6 +218,12 @@ static void build_publish_test(struct mqtt_publish_msg *pub_msg,
 int bluemix_init(void)
 {
 	int ret = 0;
+
+	/*
+	 * Initialize our device ID before doing anything else.
+	 */
+	snprintf(my_bluemix_id, sizeof(my_bluemix_id), "%s-%08x",
+		 CONFIG_BLUEMIX_DEVICE_TYPE, product_id.number);
 
 	/*
 	 * try connecting here so that tcp_get_context()
