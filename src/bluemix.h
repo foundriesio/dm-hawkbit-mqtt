@@ -49,6 +49,13 @@
 
 int bluemix_init(void);
 
+/**
+ * @brief Publish a temperature reading from the device.
+ * @param temperature Temperature reading in degrees centigrade.
+ * @return 0 on success, negative errno on failure.
+ */
+int bluemix_pub_temp_c(int temperature, char *buffer, size_t size);
+
 #endif /* (CONFIG_DM_BACKEND == BACKEND_BLUEMIX) */
 
 #endif	/* __FOTA_BLUEMIX_H__ */

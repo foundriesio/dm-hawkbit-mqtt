@@ -162,6 +162,13 @@ static char *build_auth_token(void)
 	return auth_token;
 }
 
+static int subscribe_to_topic(struct mqtt_ctx *ctx, const char *topic)
+{
+	const char* topics[] = { topic };
+	const enum mqtt_qos qos0[] = { MQTT_QoS0 };
+	return mqtt_tx_subscribe(ctx, sys_rand32_get() & 0xffff, 1, topics, qos0);
+}
+
 static void build_manage_request(struct mqtt_publish_msg *pub_msg,
 				 uint8_t *buffer, size_t size)
 {
@@ -185,33 +192,6 @@ static void build_manage_request(struct mqtt_publish_msg *pub_msg,
 		"},"
 		"\"reqId\":\"b53eb43e-401c-453c-b8f5-94b73290c056\""
 	"}", product_id.number);
-
-	pub_msg->msg = buffer;
-	pub_msg->msg_len = strlen(pub_msg->msg);
-	pub_msg->qos = MQTT_QoS0;
-	pub_msg->topic = topic;
-	pub_msg->topic_len = strlen(pub_msg->topic);
-	pub_msg->pkt_id = sys_rand32_get();
-}
-
-static void build_publish_test(struct mqtt_publish_msg *pub_msg,
-			       uint8_t *buffer, size_t size)
-{
-	char *helper;
-
-	memset(buffer, 0, size);
-	helper = buffer;
-
-	snprintf(topic, sizeof(topic),
-		"iot-2/type/%s/id/%s/evt/status/fmt/json",
-		CONFIG_BLUEMIX_DEVICE_TYPE, my_bluemix_id);
-	snprintf(helper, size,
-		"{"
-			"d:{"
-				"temperature:%d"
-			"}"
-		"}",
-		(uint8_t) sys_rand32_get());
 
 	pub_msg->msg = buffer;
 	pub_msg->msg_len = strlen(pub_msg->msg);
@@ -256,8 +236,7 @@ int bluemix_init(void)
 	ret = mqtt_init(&client_ctx.mqtt_ctx, MQTT_APP_PUBLISHER_SUBSCRIBER);
 	OTA_DBG("mqtt_init %d\n", ret);
 	if (ret) {
-		tcp_cleanup(true);
-		return ret;
+		goto out;
 	}
 
 	/* The connect message will be sent to the MQTT server (broker).
@@ -281,8 +260,7 @@ int bluemix_init(void)
 			     &client_ctx.connect_msg);
 	OTA_DBG("try_to_connect %d\n", ret);
 	if (ret) {
-		tcp_cleanup(true);
-		return ret;
+		goto out;
 	}
 
 	/*
@@ -292,24 +270,61 @@ int bluemix_init(void)
 	 * management subscription
 	 */
 
-	/* PING */
-	ret = mqtt_tx_pingreq(&client_ctx.mqtt_ctx);
-	OTA_DBG("mqtt_tx_pingreq %d\n", ret);
-	k_sleep(APP_SLEEP_MSECS);
+	OTA_DBG("subscribing to command and DM topics\n");
+	INIT_DEVICE_TOPIC("iot-2/type/%s/id/%s/cmd/+/fmt/+");
+	ret = subscribe_to_topic(&client_ctx.mqtt_ctx, topic);
+	if (ret) {
+		OTA_ERR("can't subscribe to command topics: %d\n", ret);
+		goto out;
+	}
+	INIT_DEVICE_TOPIC("iotdm-1/type/%s/id/%s/#");
+	ret = subscribe_to_topic(&client_ctx.mqtt_ctx, topic);
+	if (ret) {
+		OTA_ERR("can't subscribe to device management topics: %d\n",
+			ret);
+		goto out;
+	}
 
-	/* MANAGE REQUEST */
+	OTA_DBG("becoming a managed device\n");
 	build_manage_request(&client_ctx.pub_msg, json_buf, sizeof(json_buf));
 	ret = mqtt_tx_publish(&client_ctx.mqtt_ctx, &client_ctx.pub_msg);
-	OTA_DBG("mqtt_tx_publish %d\n", ret);
-	k_sleep(APP_SLEEP_MSECS);
+	if (ret) {
+		OTA_ERR("failed becoming a managed device: %d\n", ret);
+		goto out;
+	}
 
-	/* PUSH TEST */
-	build_publish_test(&client_ctx.pub_msg, json_buf, sizeof(json_buf));
-	ret = mqtt_tx_publish(&client_ctx.mqtt_ctx, &client_ctx.pub_msg);
-	OTA_DBG("mqtt_tx_publish %d\n", ret);
-	k_sleep(APP_SLEEP_MSECS);
+	/* PING */
+	OTA_DBG("Sending first ping\n");
+	ret = mqtt_tx_pingreq(&client_ctx.mqtt_ctx);
+	if (ret) {
+		OTA_ERR("first ping failed: %d\n", ret);
+		goto out;
+	}
 
+	return 0;
+ out:
+	tcp_cleanup(true);
 	return ret;
+}
+
+int bluemix_pub_temp_c(int temperature, char *buffer, size_t size)
+{
+	struct mqtt_publish_msg *pub_msg = &client_ctx.pub_msg;
+	INIT_DEVICE_TOPIC("iot-2/type/%s/id/%s/evt/status/fmt/json");
+	snprintf(buffer, size,
+		"{"
+			"d:{"
+				"temperature:%d"
+			"}"
+		"}",
+		temperature);
+	pub_msg->msg = buffer;
+	pub_msg->msg_len = strlen(buffer);
+	pub_msg->qos = MQTT_QoS0;
+	pub_msg->topic = topic;
+	pub_msg->topic_len = strlen(pub_msg->topic);
+	pub_msg->pkt_id = sys_rand32_get();
+	return mqtt_tx_publish(&client_ctx.mqtt_ctx, &client_ctx.pub_msg);
 }
 
 #endif /* (CONFIG_DM_BACKEND == BACKEND_BLUEMIX) */
