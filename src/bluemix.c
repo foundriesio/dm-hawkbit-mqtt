@@ -34,6 +34,14 @@ static uint8_t my_bluemix_id[30];	/* Set in bluemix_init(). */
 static uint8_t json_buf[1024];
 static uint8_t topic[255];
 
+/*
+ * Various topics are of the form:
+ * "foo/type/<device_type>/id/<device_id>/bar".
+ * This is a convenience macro for those cases.
+ */
+#define INIT_DEVICE_TOPIC(fmt) \
+	snprintf(topic, sizeof(topic), fmt, CONFIG_BLUEMIX_DEVICE_TYPE, my_bluemix_id)
+
 /**
  * @brief mqtt_client_ctx	Container of some structures used by the
  *				publisher app.
@@ -162,9 +170,7 @@ static void build_manage_request(struct mqtt_publish_msg *pub_msg,
 	memset(buffer, 0, size);
 	helper = buffer;
 
-	snprintf(topic, sizeof(topic),
-		 "iotdevice-1/type/%s/id/%s/mgmt/manage",
-		 CONFIG_BLUEMIX_DEVICE_TYPE, my_bluemix_id);
+	INIT_DEVICE_TOPIC("iotdevice-1/type/%s/id/%s/mgmt/manage");
 	snprintf(helper, size,
 	"{"
 		"\"d\":{"
