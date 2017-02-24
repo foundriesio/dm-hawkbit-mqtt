@@ -86,6 +86,7 @@ static void fota_service(void)
 {
 #if (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
 	static int bluemix_inited = 0;
+	static struct bluemix_ctx bluemix_context;
 #endif
 	uint32_t failed_poll = 0;
 	struct boot_acid acid;
@@ -156,7 +157,7 @@ static void fota_service(void)
 		}
 #elif (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
 		if (!bluemix_inited) {
-			ret = bluemix_init();
+			ret = bluemix_init(&bluemix_context);
 			if (!ret) {
 				bluemix_inited = 1;
 				/* restart the failed attempt counter */
