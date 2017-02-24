@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifndef __OTA_DEBUG_H__
+#define __OTA_DEBUG_H__
+
 #include <misc/printk.h>
 #include <kernel.h>
 
@@ -36,3 +39,5 @@
 #else
 #define OTA_DBG(...)
 #endif
+
+#endif	/* __OTA_DEBUG_H__ */
