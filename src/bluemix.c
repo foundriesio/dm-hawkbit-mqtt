@@ -152,7 +152,6 @@ static void build_manage_request(struct bluemix_ctx *ctx)
 	pub_msg->qos = MQTT_QoS0;
 	pub_msg->topic = ctx->bm_topic;
 	pub_msg->topic_len = strlen(pub_msg->topic);
-	pub_msg->pkt_id = sys_rand32_get();
 }
 
 int bluemix_init(struct bluemix_ctx *ctx)
@@ -273,7 +272,6 @@ int bluemix_pub_temp_c(struct bluemix_ctx *ctx, int temperature)
 	pub_msg->qos = MQTT_QoS0;
 	pub_msg->topic = ctx->bm_topic;
 	pub_msg->topic_len = strlen(pub_msg->topic);
-	pub_msg->pkt_id = sys_rand32_get();
 	return mqtt_tx_publish(&ctx->mqtt_ctx, &ctx->pub_msg);
 }
 
