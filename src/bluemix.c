@@ -204,6 +204,22 @@ int bluemix_init(struct bluemix_ctx *ctx)
 	 */
 	ctx->connect_msg.client_id = ctx->client_id;
 	ctx->connect_msg.client_id_len = strlen(ctx->connect_msg.client_id);
+	/*
+	 * FIXME: HACK
+	 *
+	 * This is part of a work-around for problems with the Zephyr
+	 * MQTT stack. That stack doesn't correctly parse multiple
+	 * MQTT packets within a single struct net_buf. Working around
+	 * that implies trying to never receive multiple MQTT packets
+	 * in the same net_buf.
+	 *
+	 * In order to avoid having to worry about scheduling PINGREQ
+	 * packets (whose PINGRESP packets might come at an
+	 * inconvenient time relative to other MQTT traffic), let's
+	 * just disable the keep alive feature entirely for now. We
+	 * should turn it on later.
+	 */
+	ctx->connect_msg.keep_alive = 0;
 	ctx->connect_msg.user_name = BLUEMIX_USERNAME;
 	ctx->connect_msg.user_name_len = strlen(ctx->connect_msg.user_name);
 	ctx->connect_msg.password = ctx->bm_auth_token;
@@ -240,13 +256,6 @@ int bluemix_init(struct bluemix_ctx *ctx)
 	ret = mqtt_tx_publish(&ctx->mqtt_ctx, &ctx->pub_msg);
 	if (ret) {
 		OTA_ERR("failed becoming a managed device: %d\n", ret);
-		goto out;
-	}
-
-	OTA_DBG("Sending first ping\n");
-	ret = mqtt_tx_pingreq(&ctx->mqtt_ctx);
-	if (ret) {
-		OTA_ERR("first ping failed: %d\n", ret);
 		goto out;
 	}
 
