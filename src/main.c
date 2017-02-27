@@ -130,6 +130,13 @@ static void fota_service(void)
 		}
 	}
 
+	ret = tcp_init();
+	if (ret) {
+		TC_END_RESULT(TC_FAIL);
+		TC_END_REPORT(TC_FAIL);
+		return;
+	}
+
 	TC_END_RESULT(TC_PASS);
 
 	do {

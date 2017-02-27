@@ -13,6 +13,7 @@
  */
 #define TCP_RECV_BUF_SIZE 2048
 
+int tcp_init(void);
 void tcp_cleanup(bool put_context);
 int tcp_connect(void);
 int tcp_send(const unsigned char *buf, size_t size);

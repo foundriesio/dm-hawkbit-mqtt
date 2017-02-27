@@ -58,7 +58,6 @@ static struct sockaddr client_addr;
 
 static struct net_context *net_ctx = { 0 };
 
-static bool tcp_inited = false;
 static struct k_sem sem_recv_wait;
 static struct k_sem sem_recv_mutex;
 
@@ -126,14 +125,14 @@ static void tcp_received_cb(struct net_context *context,
 	}
 }
 
-static void tcp_init(void)
+int tcp_init(void)
 {
 	struct net_if *iface;
 
 	iface = net_if_get_default();
 	if (!iface) {
 		printk("Cannot find default network interface!\n");
-		return;
+		return -ENETDOWN;
 	}
 
 #if defined(CONFIG_NET_IPV6)
@@ -182,7 +181,7 @@ static void tcp_init(void)
 	k_sem_init(&sem_recv_wait, 0, 1);
 	k_sem_init(&sem_recv_mutex, 1, 1);
 
-	tcp_inited = true;
+	return 0;
 }
 
 int tcp_connect(void)
@@ -190,9 +189,6 @@ int tcp_connect(void)
 	struct sockaddr my_addr;
 	struct sockaddr dst_addr;
 	int rc;
-
-	if (!tcp_inited)
-		tcp_init();
 
 	/* make sure we have a network context */
 	if (!net_ctx) {
