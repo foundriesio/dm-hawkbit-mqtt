@@ -27,8 +27,9 @@
 #include "tcp.h"
 #include "bluemix.h"
 
-#define BLUEMIX_USERNAME "use-token-auth"
-#define MQTT_SUBSCRIBE_WAIT K_MSEC(1000)
+#define BLUEMIX_USERNAME 	"use-token-auth"
+#define MQTT_SUBSCRIBE_WAIT 	K_MSEC(1000)
+#define BLUEMIX_MGMT_WAIT	K_MSEC(1200) /* 400 msec has been observed */
 
 /*
  * Various topics are of the form:
@@ -73,7 +74,38 @@ static int publish_tx_cb(struct mqtt_ctx *ctx, uint16_t pkt_id,
 static int publish_rx_cb(struct mqtt_ctx *ctx, struct mqtt_publish_msg *msg,
 			 uint16_t pkt_id, enum mqtt_packet type)
 {
+	struct bluemix_ctx *bm_ctx;
+
 	OTA_DBG("MQTT publish RX CB\n");
+	bm_ctx = mqtt_to_bluemix(ctx);
+
+	if (msg->topic_len + 1 > sizeof(bm_ctx->bm_topic)) {
+		bm_ctx->bm_fatal_err = -ENOMEM;
+		OTA_ERR("Bluemix topic buffer size %u overflowed by %u B\n",
+			sizeof(bm_ctx->bm_topic),
+			msg->topic_len + 1 - sizeof(bm_ctx->bm_topic));
+
+	} else if (msg->msg_len + 1 > sizeof(bm_ctx->bm_message)) {
+		bm_ctx->bm_fatal_err = -ENOMEM;
+		OTA_ERR("Bluemix message buffer size %u overflowed by %u B\n",
+			sizeof(bm_ctx->bm_message),
+			msg->msg_len + 1 - sizeof(bm_ctx->bm_message));
+	}
+	if (bm_ctx->bm_fatal_err) {
+		/* Propagate fatal error to waiter. */
+		k_sem_give(&bm_ctx->reply_sem);
+		return 0;
+	}
+
+	memcpy(bm_ctx->bm_topic, msg->topic, msg->topic_len);
+	bm_ctx->bm_topic[msg->topic_len] = '\0';
+	memcpy(bm_ctx->bm_message, msg->msg, msg->msg_len);
+	bm_ctx->bm_message[msg->msg_len] = '\0';
+	k_sem_give(&bm_ctx->reply_sem);
+
+	/* FIXME: parse JSON and validate any pending reqId. */
+	OTA_DBG("topic: %s\n", bm_ctx->bm_topic);
+	OTA_DBG("msg: %s\n", bm_ctx->bm_message);
 	return 0;
 }
 
@@ -127,6 +159,13 @@ static int try_to_connect(struct mqtt_ctx *ctx, struct mqtt_connect_msg *msg)
  * Bluemix
  */
 
+static void build_req_uuid(struct bluemix_ctx *ctx) /* TODO: improve this. */
+{
+	snprintf(ctx->bm_req_id, sizeof(ctx->bm_req_id),
+		 "%08x-401c-453c-b8f5-%012x",
+		 product_id.number, ctx->bm_next_req_id++);
+}
+
 static int subscribe_to_topic(struct bluemix_ctx *ctx)
 {
 	const char* topics[] = { ctx->bm_topic };
@@ -144,17 +183,25 @@ static int subscribe_to_topic(struct bluemix_ctx *ctx)
 	return ret;
 }
 
+static int publish_message(struct bluemix_ctx *ctx)
+{
+	OTA_DBG("topic:%s\n", ctx->pub_msg.topic);
+	OTA_DBG("message:%s\n", ctx->pub_msg.msg);
+	return mqtt_tx_publish(&ctx->mqtt_ctx, &ctx->pub_msg);
+}
+
 static void build_manage_request(struct bluemix_ctx *ctx)
 {
 	struct mqtt_publish_msg *pub_msg = &ctx->pub_msg;
-	uint8_t *buffer = ctx->bm_json_buf;
-	size_t size = sizeof(ctx->bm_json_buf);
+	uint8_t *buffer = ctx->bm_message;
+	size_t size = sizeof(ctx->bm_message);
 	char *helper;
 
 	memset(buffer, 0, size);
 	helper = buffer;
 
 	INIT_DEVICE_TOPIC(ctx, "iotdevice-1/type/%s/id/%s/mgmt/manage");
+	build_req_uuid(ctx);
 	snprintf(helper, size,
 	"{"
 		"\"d\":{"
@@ -167,14 +214,35 @@ static void build_manage_request(struct bluemix_ctx *ctx)
 			    "\"fwVersion\":\"1.0\""
 			"}"
 		"},"
-		"\"reqId\":\"b53eb43e-401c-453c-b8f5-94b73290c056\""
-	"}", product_id.number);
+		"\"reqId\":\"%s\""
+		 "}", product_id.number, ctx->bm_req_id);
 
 	pub_msg->msg = buffer;
 	pub_msg->msg_len = strlen(pub_msg->msg);
 	pub_msg->qos = MQTT_QoS0;
 	pub_msg->topic = ctx->bm_topic;
 	pub_msg->topic_len = strlen(pub_msg->topic);
+}
+
+static int become_managed_device(struct bluemix_ctx *ctx)
+{
+	int ret;
+	OTA_DBG("becoming a managed device\n");
+	build_manage_request(ctx);
+	ret = publish_message(ctx);
+	if (ret) {
+		return ret;
+	}
+	ret = wait_for_mqtt(ctx, BLUEMIX_MGMT_WAIT);
+	if (ret == -EAGAIN) {
+		OTA_ERR("timed out\n");
+		return ret;
+	} else if (ctx->bm_fatal_err) {
+		OTA_DBG("fatal error %d", ctx->bm_fatal_err);
+		return ctx->bm_fatal_err;
+	}
+	OTA_DBG("wait_for_mqtt: %d\n", ret);
+	return ret;
 }
 
 int bluemix_init(struct bluemix_ctx *ctx)
@@ -276,11 +344,8 @@ int bluemix_init(struct bluemix_ctx *ctx)
 		goto out;
 	}
 
-	OTA_DBG("becoming a managed device\n");
-	build_manage_request(ctx);
-	ret = mqtt_tx_publish(&ctx->mqtt_ctx, &ctx->pub_msg);
+	ret = become_managed_device(ctx);
 	if (ret) {
-		OTA_ERR("failed becoming a managed device: %d\n", ret);
 		goto out;
 	}
 
@@ -294,19 +359,19 @@ int bluemix_pub_temp_c(struct bluemix_ctx *ctx, int temperature)
 {
 	struct mqtt_publish_msg *pub_msg = &ctx->pub_msg;
 	INIT_DEVICE_TOPIC(ctx, "iot-2/type/%s/id/%s/evt/status/fmt/json");
-	snprintf(ctx->bm_json_buf, sizeof(ctx->bm_json_buf),
+	snprintf(ctx->bm_message, sizeof(ctx->bm_message),
 		"{"
 			"\"d\":{"
 				"\"temperature\":%d"
 			"}"
 		"}",
 		temperature);
-	pub_msg->msg = ctx->bm_json_buf;
+	pub_msg->msg = ctx->bm_message;
 	pub_msg->msg_len = strlen(pub_msg->msg);
 	pub_msg->qos = MQTT_QoS0;
 	pub_msg->topic = ctx->bm_topic;
 	pub_msg->topic_len = strlen(pub_msg->topic);
-	return mqtt_tx_publish(&ctx->mqtt_ctx, &ctx->pub_msg);
+	return publish_message(ctx);
 }
 
 #endif /* (CONFIG_DM_BACKEND == BACKEND_BLUEMIX) */

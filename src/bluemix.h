@@ -49,6 +49,8 @@
 #define BLUEMIX_FW_UPDATE_UNSUPP_IMAGE 5
 #define BLUEMIX_FW_UPDATE_INVALID_URI 6
 
+#define BM_UUID_LEN 36
+
 /**
  * @brief bluemix_ctx	Context structure for Bluemix
  *
@@ -80,10 +82,15 @@ struct bluemix_ctx {
 	void *publish_data;
 
 	uint8_t bm_id[30];	   /* Bluemix device ID */
-	uint8_t bm_json_buf[1024]; /* Buffer for JSON data */
 	uint8_t bm_topic[255];	   /* Buffer for topic names */
+	uint8_t bm_message[1024];  /* Buffer for message data */
 	uint8_t bm_auth_token[20]; /* Bluemix authentication token */
 	uint8_t client_id[50];	   /* MQTT client ID */
+
+	uint8_t bm_req_id[BM_UUID_LEN+1]; /* Request UUID scratch space */
+	int     bm_next_req_id;           /* Per-session counter, for bm_req_id */
+
+	int     bm_fatal_err;	/* Set when fatal errors occur */
 
 	/*
 	 * HACK: Semaphore for waiting for a response from Bluemix.
