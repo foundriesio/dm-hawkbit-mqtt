@@ -166,12 +166,18 @@ static void fota_service(void)
 				failed_poll++;
 				OTA_DBG("Failed init - attempt %d\n\n\n",
 					failed_poll);
-				if (failed_poll == MAX_POLL_FAIL) {
-					printk("Too many unsuccessful bluemix init attempts,"
-							" rebooting!\n");
-					sys_reboot(0);
-				}
 			}
+		} else {
+			/* TODO publish a real temperature */
+			ret = bluemix_pub_temp_c(&bluemix_context, 23);
+			if (ret) {
+				OTA_ERR("bluemix_pub_temp_c: %d\n", ret);
+				failed_poll++;
+			}
+		}
+		if (failed_poll == MAX_POLL_FAIL) {
+			printk("Too many bluemix errors, rebooting!\n");
+			sys_reboot(0);
 		}
 #endif
 
