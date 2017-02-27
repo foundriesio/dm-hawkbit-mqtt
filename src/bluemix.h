@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifndef	__FOTA_BLUEMIX_H__
+#define	__FOTA_BLUEMIX_H__
+
 #include "config.h"
 
 #if (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
@@ -20,3 +23,5 @@
 int bluemix_init(void);
 
 #endif /* (CONFIG_DM_BACKEND == BACKEND_BLUEMIX) */
+
+#endif	/* __FOTA_BLUEMIX_H__ */
