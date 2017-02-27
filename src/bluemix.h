@@ -9,6 +9,7 @@
 
 #include "config.h"
 #include <net/mqtt.h>
+#include <kernel.h>
 
 #if (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
 
@@ -83,6 +84,21 @@ struct bluemix_ctx {
 	uint8_t bm_topic[255];	   /* Buffer for topic names */
 	uint8_t bm_auth_token[20]; /* Bluemix authentication token */
 	uint8_t client_id[50];	   /* MQTT client ID */
+
+	/*
+	 * HACK: Semaphore for waiting for a response from Bluemix.
+	 *
+	 * The Zephyr MQTT stack currently assumes that at most one
+	 * MQTT command packet is stored in a net_buf. When two or
+	 * more are received and packed into the same net_buf, this is
+	 * resulting in all of them being interpreted as a single
+	 * malformed packet.
+	 *
+	 * To work around that, try to make the MQTT stack's
+	 * assumption valid by waiting whenever we expect a response
+	 * via MQTT, to avoid multiple inbound response packets.
+	 */
+	struct k_sem reply_sem;
 };
 
 int bluemix_init(struct bluemix_ctx *ctx);

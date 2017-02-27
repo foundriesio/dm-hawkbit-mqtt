@@ -28,6 +28,7 @@
 #include "bluemix.h"
 
 #define BLUEMIX_USERNAME "use-token-auth"
+#define MQTT_SUBSCRIBE_WAIT K_MSEC(1000)
 
 /*
  * Various topics are of the form:
@@ -37,6 +38,16 @@
 #define INIT_DEVICE_TOPIC(ctx, fmt)					\
 	snprintf(ctx->bm_topic, sizeof(ctx->bm_topic), fmt,		\
 		 CONFIG_BLUEMIX_DEVICE_TYPE, ctx->bm_id)
+
+static inline struct bluemix_ctx* mqtt_to_bluemix(struct mqtt_ctx *mqtt)
+{
+	return CONTAINER_OF(mqtt, struct bluemix_ctx, mqtt_ctx);
+}
+
+static inline int wait_for_mqtt(struct bluemix_ctx *ctx, int32_t timeout)
+{
+	return k_sem_take(&ctx->reply_sem, timeout);
+}
 
 /*
  * MQTT helpers
@@ -69,7 +80,10 @@ static int publish_rx_cb(struct mqtt_ctx *ctx, struct mqtt_publish_msg *msg,
 static int subscribe_cb(struct mqtt_ctx *ctx, uint16_t pkt_id,
 			uint8_t items, enum mqtt_qos qos[])
 {
+	/* FIXME: validate this is the suback we were waiting for. */
 	OTA_DBG("MQTT subscribe CB\n");
+
+	k_sem_give(&mqtt_to_bluemix(ctx)->reply_sem);
 	return 0;
 }
 
@@ -117,8 +131,17 @@ static int subscribe_to_topic(struct bluemix_ctx *ctx)
 {
 	const char* topics[] = { ctx->bm_topic };
 	const enum mqtt_qos qos0[] = { MQTT_QoS0 };
-	return mqtt_tx_subscribe(&ctx->mqtt_ctx, sys_rand32_get() & 0xffff,
-				 1, topics, qos0);
+	int ret;
+
+	ret = mqtt_tx_subscribe(&ctx->mqtt_ctx, sys_rand32_get() & 0xffff,
+				1, topics, qos0);
+	if (ret) {
+		OTA_ERR("mqtt_tx_subscribe: %d\n", ret);
+		return ret;
+	}
+	ret = wait_for_mqtt(ctx, MQTT_SUBSCRIBE_WAIT);
+	OTA_DBG("wait_for_mqtt: %d\n", ret);
+	return ret;
 }
 
 static void build_manage_request(struct bluemix_ctx *ctx)
@@ -171,6 +194,8 @@ int bluemix_init(struct bluemix_ctx *ctx)
 		ctx->bm_id);
 	snprintf(ctx->bm_auth_token, sizeof(ctx->bm_auth_token),
 		 "%08x", product_id.number);
+
+	k_sem_init(&ctx->reply_sem, 0, 1);
 
 	/*
 	 * try connecting here so that tcp_get_context()
