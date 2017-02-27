@@ -11,8 +11,6 @@
 
 #include "config.h"
 
-#if (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
-
 #include <zephyr.h>
 
 #include <net/net_context.h>
@@ -27,8 +25,11 @@
 #include "tcp.h"
 #include "bluemix.h"
 
-#define BLUEMIX_USERNAME 	"use-token-auth"
-#define MQTT_SUBSCRIBE_WAIT 	K_MSEC(1000)
+#define BLUEMIX_USERNAME	"use-token-auth"
+#define APP_CONNECT_TRIES	10
+#define APP_SLEEP_MSECS		K_MSEC(500)
+#define APP_TX_RX_TIMEOUT	K_MSEC(300)
+#define MQTT_SUBSCRIBE_WAIT	K_MSEC(1000)
 #define BLUEMIX_MGMT_WAIT	K_MSEC(1200) /* 400 msec has been observed */
 
 /*
@@ -159,13 +160,6 @@ static int try_to_connect(struct mqtt_ctx *ctx, struct mqtt_connect_msg *msg)
  * Bluemix
  */
 
-static void build_req_uuid(struct bluemix_ctx *ctx) /* TODO: improve this. */
-{
-	snprintf(ctx->bm_req_id, sizeof(ctx->bm_req_id),
-		 "%08x-401c-453c-b8f5-%012x",
-		 product_id.number, ctx->bm_next_req_id++);
-}
-
 static int subscribe_to_topic(struct bluemix_ctx *ctx)
 {
 	const char* topics[] = { ctx->bm_topic };
@@ -188,6 +182,14 @@ static int publish_message(struct bluemix_ctx *ctx)
 	OTA_DBG("topic:%s\n", ctx->pub_msg.topic);
 	OTA_DBG("message:%s\n", ctx->pub_msg.msg);
 	return mqtt_tx_publish(&ctx->mqtt_ctx, &ctx->pub_msg);
+}
+
+#if (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
+static void build_req_uuid(struct bluemix_ctx *ctx) /* TODO: improve this. */
+{
+	snprintf(ctx->bm_req_id, sizeof(ctx->bm_req_id),
+		 "%08x-401c-453c-b8f5-%012x",
+		 product_id.number, ctx->bm_next_req_id++);
 }
 
 static void build_manage_request(struct bluemix_ctx *ctx)
@@ -228,6 +230,13 @@ static int become_managed_device(struct bluemix_ctx *ctx)
 {
 	int ret;
 	OTA_DBG("becoming a managed device\n");
+	INIT_DEVICE_TOPIC(ctx, "iotdm-1/type/%s/id/%s/#");
+	ret = subscribe_to_topic(ctx);
+	if (ret) {
+		OTA_ERR("can't subscribe to device management topics: %d\n",
+			ret);
+		return ret;
+	}
 	build_manage_request(ctx);
 	ret = publish_message(ctx);
 	if (ret) {
@@ -244,6 +253,7 @@ static int become_managed_device(struct bluemix_ctx *ctx)
 	OTA_DBG("wait_for_mqtt: %d\n", ret);
 	return ret;
 }
+#endif	/* CONFIG_BLUEMIX_DM_BACKEND == BACKEND_BLUEMIX */
 
 int bluemix_init(struct bluemix_ctx *ctx)
 {
@@ -329,25 +339,19 @@ int bluemix_init(struct bluemix_ctx *ctx)
 		goto out;
 	}
 
-	OTA_DBG("subscribing to command and DM topics\n");
 	INIT_DEVICE_TOPIC(ctx, "iot-2/type/%s/id/%s/cmd/+/fmt/+");
 	ret = subscribe_to_topic(ctx);
 	if (ret) {
 		OTA_ERR("can't subscribe to command topics: %d\n", ret);
 		goto out;
 	}
-	INIT_DEVICE_TOPIC(ctx, "iotdm-1/type/%s/id/%s/#");
-	ret = subscribe_to_topic(ctx);
-	if (ret) {
-		OTA_ERR("can't subscribe to device management topics: %d\n",
-			ret);
-		goto out;
-	}
 
+#if CONFIG_DM_BACKEND == BACKEND_BLUEMIX
 	ret = become_managed_device(ctx);
 	if (ret) {
 		goto out;
 	}
+#endif
 
 	return 0;
  out:
@@ -373,5 +377,3 @@ int bluemix_pub_temp_c(struct bluemix_ctx *ctx, int temperature)
 	pub_msg->topic_len = strlen(pub_msg->topic);
 	return publish_message(ctx);
 }
-
-#endif /* (CONFIG_DM_BACKEND == BACKEND_BLUEMIX) */

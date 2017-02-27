@@ -18,11 +18,8 @@
 
 #include "ota_debug.h"
 #include "tcp.h"
-#if (CONFIG_DM_BACKEND == BACKEND_HAWKBIT)
 #include "hawkbit.h"
-#elif (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
 #include "bluemix.h"
-#endif
 
 #define SERVER_CONNECT_TIMEOUT		K_SECONDS(5)
 #define SERVER_CONNECT_MAX_WAIT_COUNT	2
@@ -38,10 +35,8 @@
 #define LOCAL_IPADDR		"::"
 #ifdef CONFIG_NET_SAMPLES_PEER_IPV6_ADDR
 #define PEER_IPADDR		CONFIG_NET_SAMPLES_PEER_IPV6_ADDR
-#elif (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
-#define PEER_IPADDR		BLUEMIX_IPADDR
 #else
-#define PEER_IPADDR		HAWKBIT_IPADDR
+#define PEER_IPADDR		"fe80::d4e7:0:0:1" /* tinyproxy gateway */
 #endif
 #elif defined(CONFIG_NET_IPV4)
 #define FOTA_AF_INET		AF_INET

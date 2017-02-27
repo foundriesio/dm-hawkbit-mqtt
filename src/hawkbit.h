@@ -12,7 +12,6 @@
 #if (CONFIG_DM_BACKEND == BACKEND_HAWKBIT)
 
 #define HAWKBIT_HOST	"gitci.com:8080"
-#define HAWKBIT_IPADDR	"fe80::d4e7:0:0:1"
 #define HAWKBIT_PORT	8080
 #define HAWKBIT_JSON_URL "/DEFAULT/controller/v1"
 
