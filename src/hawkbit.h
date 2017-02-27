@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifndef __FOTA_HAWKBIT_H__
+#define __FOTA_HAWKBIT_H__
+
 #include "config.h"
 
 #if (CONFIG_DM_BACKEND == BACKEND_HAWKBIT)
@@ -18,3 +21,5 @@ extern int poll_sleep;
 int hawkbit_ddi_poll(void);
 
 #endif /* (CONFIG_DM_BACKEND == BACKEND_HAWKBIT) */
+
+#endif	/* __FOTA_HAWKBIT_H__ */
