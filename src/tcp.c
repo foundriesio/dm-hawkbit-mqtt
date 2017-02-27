@@ -166,7 +166,7 @@ static void tcp_init(void)
 	OTA_INFO(" Done!\n");
 
 	/* TODO: add a timeout */
-	OTA_INFO("Waiting for IP assginment ");
+	OTA_INFO("Waiting for IP assignment ");
 	do {
 		OTA_INFO(".");
 		k_sleep(K_SECONDS(1));
