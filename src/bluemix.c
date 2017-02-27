@@ -296,8 +296,8 @@ int bluemix_pub_temp_c(struct bluemix_ctx *ctx, int temperature)
 	INIT_DEVICE_TOPIC(ctx, "iot-2/type/%s/id/%s/evt/status/fmt/json");
 	snprintf(ctx->bm_json_buf, sizeof(ctx->bm_json_buf),
 		"{"
-			"d:{"
-				"temperature:%d"
+			"\"d\":{"
+				"\"temperature\":%d"
 			"}"
 		"}",
 		temperature);
