@@ -34,7 +34,7 @@
 #define NET_SIN_FAMILY(s)	net_sin6(s)->sin6_family
 #define NET_SIN_ADDR(s)		net_sin6(s)->sin6_addr
 #define NET_SIN_PORT(s)		net_sin6(s)->sin6_port
-#define NET_SIN_SIZE		struct sockaddr_in6
+#define NET_SIN_SIZE		sizeof(struct sockaddr_in6)
 #define LOCAL_IPADDR		"::"
 #ifdef CONFIG_NET_SAMPLES_PEER_IPV6_ADDR
 #define PEER_IPADDR		CONFIG_NET_SAMPLES_PEER_IPV6_ADDR
@@ -48,7 +48,7 @@
 #define NET_SIN_FAMILY(s)	net_sin(s)->sin_family
 #define NET_SIN_ADDR(s)		net_sin(s)->sin_addr
 #define NET_SIN_PORT(s)		net_sin(s)->sin_port
-#define NET_SIN_SIZE		struct sockaddr_in
+#define NET_SIN_SIZE		sizeof(struct sockaddr_in)
 #define LOCAL_IPADDR		CONFIG_NET_SAMPLES_MY_IPV4_ADDR
 #define PEER_IPADDR		CONFIG_NET_SAMPLES_PEER_IPV4_ADDR
 #endif
@@ -215,8 +215,7 @@ int tcp_connect(void)
 		NET_SIN_FAMILY(&my_addr) = FOTA_AF_INET;
 		NET_SIN_PORT(&my_addr) = 0;
 
-		rc = net_context_bind(net_ctx, &my_addr,
-				      sizeof(NET_SIN_SIZE));
+		rc = net_context_bind(net_ctx, &my_addr, NET_SIN_SIZE);
 		if (rc < 0) {
 			OTA_ERR("Cannot bind IP addr (%d)\n", rc);
 			tcp_cleanup(true);
@@ -240,8 +239,7 @@ int tcp_connect(void)
 	NET_SIN_PORT(&dst_addr) = htons(SERVER_PORT);
 
 	/* triggering the connection starts the callback sequence */
-	rc = net_context_connect(net_ctx, &dst_addr,
-				  sizeof(NET_SIN_SIZE), NULL,
+	rc = net_context_connect(net_ctx, &dst_addr, NET_SIN_SIZE, NULL,
 				  SERVER_CONNECT_TIMEOUT, NULL);
 	if (rc < 0) {
 		OTA_ERR("Cannot connect to server (%d)\n", rc);
