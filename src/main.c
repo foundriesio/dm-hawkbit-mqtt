@@ -19,16 +19,15 @@
 #include "boot_utils.h"
 #if (CONFIG_DM_BACKEND == BACKEND_HAWKBIT)
 #include "hawkbit.h"
-#elif (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
-#include "bluemix.h"
 #endif
+#include "bluemix.h"
 #include "device.h"
 #include "tcp.h"
 
 #define STACKSIZE 3840
 char threadStack[STACKSIZE];
 
-#define MAX_POLL_FAIL	5
+#define MAX_SERVER_FAIL	5
 int poll_sleep = K_SECONDS(30);
 struct device *flash_dev;
 
@@ -84,11 +83,9 @@ static int fota_service_update_acid(struct boot_acid *acid)
 /* Firmware OTA thread (Hawkbit) */
 static void fota_service(void)
 {
-#if (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
 	static int bluemix_inited = 0;
 	static struct bluemix_ctx bluemix_context;
-#endif
-	uint32_t failed_poll = 0;
+	uint32_t hawkbit_failures = 0, bluemix_failures = 0;
 	struct boot_acid acid;
 	uint8_t boot_status;
 	int ret;
@@ -151,42 +148,44 @@ static void fota_service(void)
 #if (CONFIG_DM_BACKEND == BACKEND_HAWKBIT)
 		ret = hawkbit_ddi_poll();
 		if (ret < 0) {
-			failed_poll++;
-			OTA_DBG("Failed poll attempt %d\n\n\n", failed_poll);
-			if (failed_poll == MAX_POLL_FAIL) {
+			hawkbit_failures++;
+			OTA_DBG("Failed hawkBit attempt %d\n\n\n", hawkbit_failures);
+			if (hawkbit_failures == MAX_SERVER_FAIL) {
 				printk("Too many unsuccessful poll attempts,"
 						" rebooting!\n");
 				sys_reboot(0);
 			}
 		} else {
 			/* restart the failed attempt counter */
-			failed_poll = 0;
+			hawkbit_failures = 0;
 		}
-#elif (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
+#endif
 		if (!bluemix_inited) {
 			ret = bluemix_init(&bluemix_context);
 			if (!ret) {
 				bluemix_inited = 1;
 				/* restart the failed attempt counter */
-				failed_poll = 0;
+				bluemix_failures = 0;
 			} else {
-				failed_poll++;
-				OTA_DBG("Failed init - attempt %d\n\n\n",
-					failed_poll);
+				bluemix_failures++;
+				OTA_DBG("Failed Bluemix init - attempt %d\n\n\n",
+					bluemix_failures);
 			}
-		} else {
+		}
+		if (bluemix_inited) {
 			/* TODO publish a real temperature */
 			ret = bluemix_pub_temp_c(&bluemix_context, 23);
 			if (ret) {
 				OTA_ERR("bluemix_pub_temp_c: %d\n", ret);
-				failed_poll++;
+				bluemix_failures++;
+			} else {
+				bluemix_failures = 0;
 			}
 		}
-		if (failed_poll == MAX_POLL_FAIL) {
+		if (bluemix_failures == MAX_SERVER_FAIL) {
 			printk("Too many bluemix errors, rebooting!\n");
 			sys_reboot(0);
 		}
-#endif
 
 		stack_analyze("FOTA Thread", threadStack, STACKSIZE);
 	} while (1);
