@@ -83,6 +83,7 @@ struct bluemix_ctx {
 };
 
 int bluemix_init(struct bluemix_ctx *ctx);
+int bluemix_fini(struct bluemix_ctx *ctx);
 
 /**
  * @brief Publish a temperature reading from the device.

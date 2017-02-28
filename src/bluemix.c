@@ -30,6 +30,7 @@
 #define APP_SLEEP_MSECS		K_MSEC(500)
 #define APP_TX_RX_TIMEOUT	K_MSEC(300)
 #define MQTT_SUBSCRIBE_WAIT	K_MSEC(1000)
+#define MQTT_DISCONNECT_WAIT	K_MSEC(1000)
 #define BLUEMIX_MGMT_WAIT	K_MSEC(1200) /* 400 msec has been observed */
 
 /*
@@ -63,6 +64,7 @@ static void connect_cb(struct mqtt_ctx *ctx)
 static void disconnect_cb(struct mqtt_ctx *ctx)
 {
 	OTA_DBG("MQTT disconnect CB\n");
+	k_sem_give(&mqtt_to_bluemix(ctx)->reply_sem);
 }
 
 static int publish_tx_cb(struct mqtt_ctx *ctx, uint16_t pkt_id,
@@ -355,6 +357,21 @@ int bluemix_init(struct bluemix_ctx *ctx)
 
 	return 0;
  out:
+	tcp_cleanup(TCP_CTX_BLUEMIX, true);
+	return ret;
+}
+
+int bluemix_fini(struct bluemix_ctx *ctx)
+{
+	int ret;
+
+	ret = mqtt_tx_disconnect(&ctx->mqtt_ctx);
+	if (ret) {
+		OTA_ERR("%s: mqtt_tx_disconnect: %d\n", __func__, ret);
+		goto cleanup;
+	}
+	ret = wait_for_mqtt(ctx, MQTT_DISCONNECT_WAIT);
+ cleanup:
 	tcp_cleanup(TCP_CTX_BLUEMIX, true);
 	return ret;
 }
