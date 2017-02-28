@@ -47,37 +47,48 @@
 #define LOCAL_IPADDR		CONFIG_NET_SAMPLES_MY_IPV4_ADDR
 #define PEER_IPADDR		CONFIG_NET_SAMPLES_PEER_IPV4_ADDR
 #endif
-#if (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
-#define SERVER_PORT		BLUEMIX_PORT
-#else
-#define SERVER_PORT		HAWKBIT_PORT
-#endif
 
 /* Global address to be set from RA */
 static struct sockaddr client_addr;
 
-static struct net_context *net_ctx = { 0 };
+struct tcp_context {
+	struct net_context *net_ctx;
+	struct k_sem sem_recv_wait;
+	struct k_sem sem_recv_mutex;
+	uint8_t read_buf[TCP_RECV_BUF_SIZE];
+	uint16_t read_bytes;
+	uint16_t peer_port;
+};
 
-static struct k_sem sem_recv_wait;
-static struct k_sem sem_recv_mutex;
+static struct tcp_context contexts[TCP_CTX_MAX];
 
-static uint8_t tcp_read_buf[TCP_RECV_BUF_SIZE];
-static uint16_t read_bytes = 0;
-
-void tcp_cleanup(bool put_context)
+static inline int invalid_id(enum tcp_context_id id)
 {
-	if (put_context && net_ctx) {
-		net_context_put(net_ctx);
+	return id < TCP_CTX_HAWKBIT || id >= TCP_CTX_MAX;
+}
+
+static void tcp_cleanup_context(struct tcp_context *ctx, bool put_net_context)
+{
+	if (put_net_context && ctx->net_ctx) {
+		net_context_put(ctx->net_ctx);
 	}
 
-	net_ctx = NULL;
+	ctx->net_ctx = NULL;
+}
+
+void tcp_cleanup(enum tcp_context_id id, bool put_net_context)
+{
+	if (invalid_id(id)) {
+		return;
+	}
+	tcp_cleanup_context(&contexts[id], put_net_context);
 }
 
 static void tcp_received_cb(struct net_context *context,
 			    struct net_buf *buf, int status, void *user_data)
 {
 	ARG_UNUSED(context);
-	ARG_UNUSED(user_data);
+	struct tcp_context *ctx = user_data;
 	struct net_buf *rx_buf;
 	uint8_t *ptr;
 	int len;
@@ -86,22 +97,23 @@ static void tcp_received_cb(struct net_context *context,
 	if (!buf) {
 		OTA_DBG("FIN received, closing network context\n");
 		/* clear out our reference to the network connection */
-		tcp_cleanup(false);
-		k_sem_give(&sem_recv_wait);
+		tcp_cleanup_context(ctx, false);
+		k_sem_give(&ctx->sem_recv_wait);
 		return;
 	} else {
-		k_sem_take(&sem_recv_mutex, K_FOREVER);
+		k_sem_take(&ctx->sem_recv_mutex, K_FOREVER);
 
 		/*
 		 * TODO: if overflow, return an error and save
 		 * the nbuf for later processing
 		 */
-		if (read_bytes + net_nbuf_appdatalen(buf) >= TCP_RECV_BUF_SIZE) {
+		if (ctx->read_bytes + net_nbuf_appdatalen(buf) >= TCP_RECV_BUF_SIZE) {
 			OTA_ERR("ERROR buffer overflow! (read(%u)+bufflen(%u) >= %u)\n",
-			       read_bytes, net_nbuf_appdatalen(buf), TCP_RECV_BUF_SIZE);
+				ctx->read_bytes, net_nbuf_appdatalen(buf),
+				TCP_RECV_BUF_SIZE);
 			net_nbuf_unref(buf);
-			tcp_cleanup(true);
-			k_sem_give(&sem_recv_wait);
+			tcp_cleanup_context(ctx, true);
+			k_sem_give(&ctx->sem_recv_wait);
 			return;
 		} else {
 			rx_buf = buf->frags;
@@ -109,8 +121,8 @@ static void tcp_received_cb(struct net_context *context,
 			len = rx_buf->len - (ptr - rx_buf->data);
 
 			while (rx_buf) {
-				memcpy(tcp_read_buf + read_bytes, ptr, len);
-				read_bytes += len;
+				memcpy(ctx->read_buf + ctx->read_bytes, ptr, len);
+				ctx->read_bytes += len;
 				rx_buf = rx_buf->frags;
 				if (!rx_buf) {
 					break;
@@ -119,15 +131,16 @@ static void tcp_received_cb(struct net_context *context,
 				len = rx_buf->len;
 			}
 		}
-		tcp_read_buf[read_bytes] = 0;
+		ctx->read_buf[ctx->read_bytes] = 0;
 		net_nbuf_unref(buf);
-		k_sem_give(&sem_recv_mutex);
+		k_sem_give(&ctx->sem_recv_mutex);
 	}
 }
 
 int tcp_init(void)
 {
 	struct net_if *iface;
+	int i;
 
 	iface = net_if_get_default();
 	if (!iface) {
@@ -178,26 +191,31 @@ int tcp_init(void)
 #endif
 #endif
 
-	k_sem_init(&sem_recv_wait, 0, 1);
-	k_sem_init(&sem_recv_mutex, 1, 1);
+	memset(contexts, 0x00, sizeof(contexts));
+	for (i = 0; i < TCP_CTX_MAX; i++) {
+		k_sem_init(&contexts[i].sem_recv_wait, 0, 1);
+		k_sem_init(&contexts[i].sem_recv_mutex, 1, 1);
+	}
+	contexts[TCP_CTX_HAWKBIT].peer_port = HAWKBIT_PORT;
+	contexts[TCP_CTX_BLUEMIX].peer_port = BLUEMIX_PORT;
 
 	return 0;
 }
 
-int tcp_connect(void)
+static int tcp_connect_context(struct tcp_context *ctx)
 {
 	struct sockaddr my_addr;
 	struct sockaddr dst_addr;
 	int rc;
 
 	/* make sure we have a network context */
-	if (!net_ctx) {
+	if (!ctx->net_ctx) {
 		rc = net_context_get(FOTA_AF_INET, SOCK_STREAM,
-				     IPPROTO_TCP, &net_ctx);
+				     IPPROTO_TCP, &ctx->net_ctx);
 		if (rc < 0) {
 			OTA_ERR("Cannot get network context for TCP (%d)\n",
 				rc);
-			tcp_cleanup(true);
+			tcp_cleanup_context(ctx, true);
 			return -EIO;
 		}
 
@@ -206,51 +224,60 @@ int tcp_connect(void)
 		NET_SIN_FAMILY(&my_addr) = FOTA_AF_INET;
 		NET_SIN_PORT(&my_addr) = 0;
 
-		rc = net_context_bind(net_ctx, &my_addr, NET_SIN_SIZE);
+		rc = net_context_bind(ctx->net_ctx, &my_addr, NET_SIN_SIZE);
 		if (rc < 0) {
 			OTA_ERR("Cannot bind IP addr (%d)\n", rc);
-			tcp_cleanup(true);
+			tcp_cleanup_context(ctx, true);
 			return -EINVAL;
 		}
 	}
 
-	if (!net_ctx) {
+	if (!ctx->net_ctx) {
 		OTA_ERR("ERROR: No TCP network context!\n");
 		return -EIO;
 	}
 
 	/* if we're already connected return */
-	if (net_context_get_state(net_ctx) == NET_CONTEXT_CONNECTED) {
+	if (net_context_get_state(ctx->net_ctx) == NET_CONTEXT_CONNECTED) {
 		return 0;
 	}
 
 	net_addr_pton(FOTA_AF_INET, PEER_IPADDR,
 		      (struct sockaddr *)&NET_SIN_ADDR(&dst_addr));
 	NET_SIN_FAMILY(&dst_addr) = FOTA_AF_INET;
-	NET_SIN_PORT(&dst_addr) = htons(SERVER_PORT);
+	NET_SIN_PORT(&dst_addr) = htons(ctx->peer_port);
 
 	/* triggering the connection starts the callback sequence */
-	rc = net_context_connect(net_ctx, &dst_addr, NET_SIN_SIZE, NULL,
-				  SERVER_CONNECT_TIMEOUT, NULL);
+	rc = net_context_connect(ctx->net_ctx, &dst_addr, NET_SIN_SIZE,
+				 NULL, SERVER_CONNECT_TIMEOUT, NULL);
 	if (rc < 0) {
 		OTA_ERR("Cannot connect to server (%d)\n", rc);
-		tcp_cleanup(true);
+		tcp_cleanup_context(ctx, true);
 		return -EIO;
 	}
 	return 0;
 }
 
-int tcp_send(const unsigned char *buf, size_t size)
+int tcp_connect(enum tcp_context_id id)
+{
+	if (invalid_id(id)) {
+		return -EINVAL;
+	}
+	return tcp_connect_context(&contexts[id]);
+}
+
+static int tcp_send_context(struct tcp_context *ctx, const unsigned char *buf,
+			    size_t size)
 {
 	struct net_buf *send_buf;
 	int rc, len;
 
 	/* make sure we're connected */
-	rc = tcp_connect();
+	rc = tcp_connect_context(ctx);
 	if (rc < 0)
 		return rc;
 
-	send_buf = net_nbuf_get_tx(net_ctx, K_FOREVER);
+	send_buf = net_nbuf_get_tx(ctx->net_ctx, K_FOREVER);
 	if (!send_buf) {
 		OTA_ERR("cannot create buf\n");
 		return -EIO;
@@ -271,7 +298,7 @@ int tcp_send(const unsigned char *buf, size_t size)
 		net_nbuf_unref(send_buf);
 
 		if (rc == -ESHUTDOWN)
-			tcp_cleanup(true);
+			tcp_cleanup_context(ctx, true);
 
 		return -EIO;
 	} else {
@@ -279,47 +306,70 @@ int tcp_send(const unsigned char *buf, size_t size)
 	}
 }
 
-int tcp_recv(unsigned char *buf, size_t size, int32_t timeout)
+int tcp_send(enum tcp_context_id id, const unsigned char *buf, size_t size)
+{
+	if (invalid_id(id)) {
+		return -EINVAL;
+	}
+	return tcp_send_context(&contexts[id], buf, size);
+}
+
+static int tcp_recv_context(struct tcp_context *ctx, unsigned char *buf,
+			    size_t size, int32_t timeout)
 {
 	int rc;
 
 	/* make sure we're connected */
-	rc = tcp_connect();
+	rc = tcp_connect_context(ctx);
 	if (rc < 0)
 		return rc;
 
-	net_context_recv(net_ctx, tcp_received_cb, K_NO_WAIT, NULL);
+	net_context_recv(ctx->net_ctx, tcp_received_cb, K_NO_WAIT, ctx);
 	/* wait here for the connection to complete or timeout */
-	rc = k_sem_take(&sem_recv_wait, timeout);
+	rc = k_sem_take(&ctx->sem_recv_wait, timeout);
 	if (rc < 0 && rc != -ETIMEDOUT) {
 		OTA_ERR("recv_wait sem error = %d\n", rc);
 		return rc;
 	}
 
 	/* take a mutex here so we don't process any more data */
-	k_sem_take(&sem_recv_mutex, K_FOREVER);
+	k_sem_take(&ctx->sem_recv_mutex, K_FOREVER);
 
 	/* copy the receive buffer into the passed in buffer */
-	if (read_bytes > 0) {
-		if (read_bytes > size)
-			read_bytes = size;
-		memcpy(buf, tcp_read_buf, read_bytes);
+	if (ctx->read_bytes > 0) {
+		if (ctx->read_bytes > size)
+			ctx->read_bytes = size;
+		memcpy(buf, ctx->read_buf, ctx->read_bytes);
 	}
-	buf[read_bytes] = 0;
-	rc = read_bytes;
-	read_bytes = 0;
+	buf[ctx->read_bytes] = 0;
+	rc = ctx->read_bytes;
+	ctx->read_bytes = 0;
 
-	k_sem_give(&sem_recv_mutex);
+	k_sem_give(&ctx->sem_recv_mutex);
 
 	return rc;
 }
 
-struct net_context *tcp_get_context(void)
+int tcp_recv(enum tcp_context_id id, unsigned char *buf, size_t size, int32_t timeout)
 {
-	return net_ctx;
+	if (invalid_id(id)) {
+		return -EINVAL;
+	}
+	return tcp_recv_context(&contexts[id], buf, size, timeout);
 }
 
-struct k_sem *tcp_get_recv_wait_sem(void)
+struct net_context *tcp_get_net_context(enum tcp_context_id id)
 {
-	return &sem_recv_wait;
+	if (invalid_id(id)) {
+		return NULL;
+	}
+	return contexts[id].net_ctx;
+}
+
+struct k_sem *tcp_get_recv_wait_sem(enum tcp_context_id id)
+{
+	if (invalid_id(id)) {
+		return NULL;
+	}
+	return &contexts[id].sem_recv_wait;
 }

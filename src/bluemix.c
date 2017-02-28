@@ -276,10 +276,10 @@ int bluemix_init(struct bluemix_ctx *ctx)
 	k_sem_init(&ctx->reply_sem, 0, 1);
 
 	/*
-	 * try connecting here so that tcp_get_context()
+	 * try connecting here so that tcp_get_net_context()
 	 * will return a valid net_ctx later
 	 */
-	ret = tcp_connect();
+	ret = tcp_connect(TCP_CTX_BLUEMIX);
 	if (ret < 0) {
 		return ret;
 	}
@@ -292,7 +292,7 @@ int bluemix_init(struct bluemix_ctx *ctx)
 	ctx->mqtt_ctx.subscribe = subscribe_cb;
 	ctx->mqtt_ctx.unsubscribe = unsubscribe_cb;
 	ctx->mqtt_ctx.net_timeout = APP_TX_RX_TIMEOUT;
-	ctx->mqtt_ctx.net_ctx = tcp_get_context();
+	ctx->mqtt_ctx.net_ctx = tcp_get_net_context(TCP_CTX_BLUEMIX);
 
 	ret = mqtt_init(&ctx->mqtt_ctx, MQTT_APP_PUBLISHER_SUBSCRIBER);
 	OTA_DBG("mqtt_init %d\n", ret);
@@ -355,7 +355,7 @@ int bluemix_init(struct bluemix_ctx *ctx)
 
 	return 0;
  out:
-	tcp_cleanup(true);
+	tcp_cleanup(TCP_CTX_BLUEMIX, true);
 	return ret;
 }
 

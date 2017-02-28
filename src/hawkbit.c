@@ -209,7 +209,7 @@ static void hawkbit_header_cb(struct net_context *context,
 	if (!buf) {
 		OTA_ERR("Download: EARLY end of buffer\n");
 		hbd->header_status = -1;
-		k_sem_give(tcp_get_recv_wait_sem());
+		k_sem_give(tcp_get_recv_wait_sem(TCP_CTX_HAWKBIT));
 		return;
 	}
 
@@ -254,7 +254,7 @@ static void hawkbit_header_cb(struct net_context *context,
 		hbd->http_header_size = http_data.header_size;
 		hbd->http_content_size = http_data.content_length;
 		hbd->header_status = 1;
-		k_sem_give(tcp_get_recv_wait_sem());
+		k_sem_give(tcp_get_recv_wait_sem(TCP_CTX_HAWKBIT));
 	}
 }
 
@@ -269,7 +269,7 @@ static void hawkbit_download_cb(struct net_context *context,
 
 	if (!buf) {
 		/* handle end of stream */
-		k_sem_give(tcp_get_recv_wait_sem());
+		k_sem_give(tcp_get_recv_wait_sem(TCP_CTX_HAWKBIT));
 		hbd->download_status = 1;
 		return;
 	}
@@ -333,7 +333,8 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 				"\r\n",
 				download_http, HAWKBIT_HOST);
 
-	ret = tcp_send((const char *) tcp_buffer, strlen(tcp_buffer));
+	ret = tcp_send(TCP_CTX_HAWKBIT, (const char *) tcp_buffer,
+		       strlen(tcp_buffer));
 	if (ret < 0) {
 		OTA_ERR("Failed to send buffer, err %d\n", ret);
 		return ret;
@@ -343,16 +344,16 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 	memset(tcp_buf, 0, TCP_RECV_BUF_SIZE);
 	memset(&hbd, 0, sizeof(struct hawkbit_download));
 
-	if (tcp_connect() < 0) {
+	if (tcp_connect(TCP_CTX_HAWKBIT) < 0) {
 		ret = -1;
 		goto error_cleanup;
 	}
 
-	net_context_recv(tcp_get_context(), hawkbit_header_cb,
-			 K_NO_WAIT, (void *)&hbd);
+	net_context_recv(tcp_get_net_context(TCP_CTX_HAWKBIT),
+			 hawkbit_header_cb, K_NO_WAIT, (void *)&hbd);
 
 	/* wait here for the connection to complete or timeout */
-	k_sem_take(tcp_get_recv_wait_sem(), K_SECONDS(3));
+	k_sem_take(tcp_get_recv_wait_sem(TCP_CTX_HAWKBIT), K_SECONDS(3));
 	if (hbd.header_status < 0) {
 		OTA_ERR("Unable to start the download process %d\n",
 			ret);
@@ -382,11 +383,12 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 
 	/* wait here for the connection to complete or timeout */
 	do {
-		net_context_recv(tcp_get_context(),
+		net_context_recv(tcp_get_net_context(TCP_CTX_HAWKBIT),
 				 hawkbit_download_cb, K_NO_WAIT,
 				 (void *)&hbd);
 	} while (hbd.download_status >= 0 &&
-		 k_sem_take(tcp_get_recv_wait_sem(), K_SECONDS(1)) != 0);
+		 k_sem_take(tcp_get_recv_wait_sem(TCP_CTX_HAWKBIT),
+			    K_SECONDS(1)) != 0);
 
 	if (hbd.download_status < 0) {
 		OTA_ERR("Unable to finish the download process %d\n",
@@ -405,7 +407,7 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 	flash_block_write(flash_dev, FLASH_BANK1_OFFSET,
 			  &hbd.downloaded_size, NULL, 0, true);
 
-	tcp_cleanup(true);
+	tcp_cleanup(TCP_CTX_HAWKBIT, true);
 
 	if (hbd.downloaded_size != hbd.http_content_size) {
 		OTA_ERR("Download: downloaded image size mismatch, "
@@ -419,7 +421,7 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 	return 0;
 
 error_cleanup:
-	tcp_cleanup(true);
+	tcp_cleanup(TCP_CTX_HAWKBIT, true);
 	return ret;
 }
 
@@ -436,12 +438,13 @@ static int hawkbit_query(uint8_t *tcp_buffer, size_t size,
 
 	OTA_DBG("\n\n%s\n", tcp_buffer);
 
-	ret = tcp_send((const char *) tcp_buffer, strlen(tcp_buffer));
+	ret = tcp_send(TCP_CTX_HAWKBIT, (const char *) tcp_buffer,
+		       strlen(tcp_buffer));
 	if (ret < 0) {
 		OTA_ERR("Failed to send buffer, err %d\n", ret);
 		return ret;
 	}
-	ret = tcp_recv((char *) tcp_buffer, size, K_FOREVER);
+	ret = tcp_recv(TCP_CTX_HAWKBIT, (char *) tcp_buffer, size, K_FOREVER);
 	if (ret <= 0) {
 		OTA_ERR("No received data (ret=%d)\n", ret);
 		return -1;
