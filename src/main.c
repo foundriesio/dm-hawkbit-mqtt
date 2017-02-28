@@ -8,6 +8,7 @@
 #include <misc/stack.h>
 #include <gpio.h>
 #include <tc_util.h>
+#include <misc/reboot.h>
 
 /* Local helpers and functions */
 #include "bt_storage.h"
@@ -49,7 +50,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	printk("BT LE Disconnected (reason %u), rebooting!\n", reason);
 	set_bluetooth_led(0);
-	sys_arch_reboot(0);
+	sys_reboot(0);
 }
 
 static struct bt_conn_cb conn_callbacks = {
@@ -137,7 +138,7 @@ static void fota_service(void)
 			if (failed_poll == MAX_POLL_FAIL) {
 				printk("Too many unsuccessful poll attempts,"
 						" rebooting!\n");
-				sys_arch_reboot(0);
+				sys_reboot(0);
 			}
 		} else {
 			/* restart the failed attempt counter */

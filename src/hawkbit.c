@@ -12,6 +12,7 @@
 #include <misc/byteorder.h>
 #include <flash.h>
 #include <zephyr.h>
+#include <misc/reboot.h>
 
 #include <bluetooth/bluetooth.h>
 
@@ -857,7 +858,7 @@ int hawkbit_ddi_poll(void)
 					hawkbit_acid);
 
 	/* Reboot and let the bootloader take care of the swap process */
-	sys_arch_reboot(0);
+	sys_reboot(0);
 
 	return 0;
 }
