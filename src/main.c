@@ -181,6 +181,10 @@ static void fota_service(void)
 			} else {
 				bluemix_failures = 0;
 			}
+			/* Either way, shut it down. */
+			ret = bluemix_fini(&bluemix_context);
+			OTA_DBG("bluemix_fini: %d\n", ret);
+			bluemix_inited = false;
 		}
 		if (bluemix_failures == MAX_SERVER_FAIL) {
 			printk("Too many bluemix errors, rebooting!\n");
