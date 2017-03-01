@@ -9,6 +9,7 @@
 #include <bluetooth/conn.h>
 #include <misc/stack.h>
 #include <gpio.h>
+#include <sensor.h>
 #include <tc_util.h>
 #include <misc/reboot.h>
 
@@ -30,6 +31,9 @@ char threadStack[STACKSIZE];
 #define MAX_SERVER_FAIL	5
 int poll_sleep = K_SECONDS(30);
 struct device *flash_dev;
+
+#define GENERIC_TEMP_SENSOR_DEVICE	"TEMP_0"
+struct device *temp_sensor_dev;
 
 #if defined(CONFIG_BLUETOOTH)
 static bool bt_connection_state = false;
@@ -89,6 +93,7 @@ static void fota_service(void)
 	struct boot_acid acid;
 	uint8_t boot_status;
 	int ret;
+	struct sensor_value temp_value;
 
 	OTA_INFO("Starting FOTA Service Thread\n");
 
@@ -98,6 +103,12 @@ static void fota_service(void)
 		TC_END_RESULT(TC_FAIL);
 		TC_END_REPORT(TC_FAIL);
 		return;
+	}
+
+	temp_sensor_dev = device_get_binding(GENERIC_TEMP_SENSOR_DEVICE);
+	if (!temp_sensor_dev) {
+		OTA_INFO("Failed to find a temperature sensor\n"
+			 "(Using random values instead)\n");
 	}
 
 	/* Update boot status and acid */
@@ -173,19 +184,46 @@ static void fota_service(void)
 			}
 		}
 		if (bluemix_inited) {
-			/* TODO publish a real temperature */
-			ret = bluemix_pub_temp_c(&bluemix_context, 23);
+			/*
+			 * Initialize the temp sensor values with dummy
+			 * data.  If we have no HW sensor or encounter
+			 * errors, use these values as defaults.
+			 */
+			temp_value.val1 = 23;
+			temp_value.val2 = 0;
+
+			/* gather temp data from real sensor */
+			if (temp_sensor_dev) {
+				ret = sensor_sample_fetch(temp_sensor_dev);
+				if (ret) {
+					OTA_ERR("temp sensor fetch error: %d\n", ret);
+				} else {
+					ret = sensor_channel_get(temp_sensor_dev,
+							SENSOR_CHAN_TEMP,
+							&temp_value);
+					if (ret) {
+						OTA_ERR("sensor_channel_get error: %d\n", ret);
+					}
+				}
+			}
+
+			OTA_DBG("Read temp sensor: %d.%dC\n", temp_value.val1, temp_value.val2);
+
+			/* use the whole number portion of temp sensor value */
+			ret = bluemix_pub_temp_c(&bluemix_context, temp_value.val1);
 			if (ret) {
 				OTA_ERR("bluemix_pub_temp_c: %d\n", ret);
 				bluemix_failures++;
 			} else {
 				bluemix_failures = 0;
 			}
+
 			/* Either way, shut it down. */
 			ret = bluemix_fini(&bluemix_context);
 			OTA_DBG("bluemix_fini: %d\n", ret);
 			bluemix_inited = false;
 		}
+
 		if (bluemix_failures == MAX_SERVER_FAIL) {
 			printk("Too many bluemix errors, rebooting!\n");
 			sys_reboot(0);
