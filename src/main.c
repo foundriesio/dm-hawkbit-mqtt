@@ -275,7 +275,9 @@ static void bluemix_service(void)
 
 		/* Either way, shut it down. */
 		ret = bluemix_fini(&bluemix_context);
-		OTA_DBG("bluemix_fini: %d\n", ret);
+		if (ret) {
+			OTA_ERR("bluemix_fini: %d\n", ret);
+		}
 
 		tcp_interface_unlock();
 

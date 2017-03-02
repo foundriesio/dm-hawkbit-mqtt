@@ -58,19 +58,16 @@ static inline int wait_for_mqtt(struct bluemix_ctx *ctx, int32_t timeout)
 
 static void connect_cb(struct mqtt_ctx *ctx)
 {
-	OTA_DBG("MQTT connect CB\n");
 }
 
 static void disconnect_cb(struct mqtt_ctx *ctx)
 {
-	OTA_DBG("MQTT disconnect CB\n");
 	k_sem_give(&mqtt_to_bluemix(ctx)->reply_sem);
 }
 
 static int publish_tx_cb(struct mqtt_ctx *ctx, uint16_t pkt_id,
 			 enum mqtt_packet type)
 {
-	OTA_DBG("MQTT publish TX CB\n");
 	return 0;
 }
 
@@ -79,7 +76,6 @@ static int publish_rx_cb(struct mqtt_ctx *ctx, struct mqtt_publish_msg *msg,
 {
 	struct bluemix_ctx *bm_ctx;
 
-	OTA_DBG("MQTT publish RX CB\n");
 	bm_ctx = mqtt_to_bluemix(ctx);
 
 	if (msg->topic_len + 1 > sizeof(bm_ctx->bm_topic)) {
@@ -116,8 +112,6 @@ static int subscribe_cb(struct mqtt_ctx *ctx, uint16_t pkt_id,
 			uint8_t items, enum mqtt_qos qos[])
 {
 	/* FIXME: validate this is the suback we were waiting for. */
-	OTA_DBG("MQTT subscribe CB\n");
-
 	k_sem_give(&mqtt_to_bluemix(ctx)->reply_sem);
 	return 0;
 }
@@ -140,13 +134,10 @@ static int try_to_connect(struct mqtt_ctx *ctx, struct mqtt_connect_msg *msg)
 	int ret;
 
 	while (i++ < APP_CONNECT_TRIES && !ctx->connected) {
-		OTA_DBG(">>> connect: client_id=[%s/%d] user_name=[%s/%d]\n",
-			msg->client_id, msg->client_id_len,
-			msg->user_name, msg->user_name_len);
 		ret = mqtt_tx_connect(ctx, msg);
 		k_sleep(APP_SLEEP_MSECS);
-		OTA_DBG("mqtt_tx_connect %d\n", ret);
 		if (ret) {
+			OTA_ERR("mqtt_tx_connect: %d\n", ret);
 			continue;
 		}
 	}
@@ -175,7 +166,6 @@ static int subscribe_to_topic(struct bluemix_ctx *ctx)
 		return ret;
 	}
 	ret = wait_for_mqtt(ctx, MQTT_SUBSCRIBE_WAIT);
-	OTA_DBG("wait_for_mqtt: %d\n", ret);
 	return ret;
 }
 
@@ -297,7 +287,6 @@ int bluemix_init(struct bluemix_ctx *ctx)
 	ctx->mqtt_ctx.net_ctx = tcp_get_net_context(TCP_CTX_BLUEMIX);
 
 	ret = mqtt_init(&ctx->mqtt_ctx, MQTT_APP_PUBLISHER_SUBSCRIBER);
-	OTA_DBG("mqtt_init %d\n", ret);
 	if (ret) {
 		goto out;
 	}
@@ -336,7 +325,6 @@ int bluemix_init(struct bluemix_ctx *ctx)
 	ctx->publish_data = "PUBLISH";
 
 	ret = try_to_connect(&ctx->mqtt_ctx, &ctx->connect_msg);
-	OTA_DBG("try_to_connect %d\n", ret);
 	if (ret) {
 		goto out;
 	}
