@@ -25,8 +25,8 @@
 #include "device.h"
 #include "tcp.h"
 
-#define STACKSIZE 3840
-char threadStack[STACKSIZE];
+#define FOTA_STACK_SIZE 3840
+char fota_thread_stack[FOTA_STACK_SIZE];
 
 #define MAX_SERVER_FAIL	5
 int poll_sleep = K_SECONDS(30);
@@ -229,7 +229,7 @@ static void fota_service(void)
 			sys_reboot(0);
 		}
 
-		stack_analyze("FOTA Thread", threadStack, STACKSIZE);
+		stack_analyze("FOTA Thread", fota_thread_stack, FOTA_STACK_SIZE);
 	} while (1);
 }
 
@@ -294,7 +294,7 @@ void main(void)
 #endif
 
 	TC_PRINT("Starting the FOTA Service\n");
-	k_thread_spawn(&threadStack[0], STACKSIZE,
+	k_thread_spawn(&fota_thread_stack[0], FOTA_STACK_SIZE,
 			(k_thread_entry_t) fota_service,
 			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
 
