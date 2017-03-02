@@ -28,12 +28,16 @@
 #define FOTA_STACK_SIZE 3840
 char fota_thread_stack[FOTA_STACK_SIZE];
 
+#define BLUEMIX_STACK_SIZE 1024
+char bluemix_thread_stack[BLUEMIX_STACK_SIZE];
+
 #define MAX_SERVER_FAIL	5
 int poll_sleep = K_SECONDS(30);
 struct device *flash_dev;
 
 #define GENERIC_TEMP_SENSOR_DEVICE	"TEMP_0"
 struct device *temp_sensor_dev;
+int bluemix_sleep = K_SECONDS(3);
 
 #if defined(CONFIG_BLUETOOTH)
 static bool bt_connection_state = false;
@@ -145,20 +149,10 @@ static int fota_init(void)
 /* Firmware OTA thread (Hawkbit) */
 static void fota_service(void)
 {
-	static int bluemix_inited = 0;
-	static struct bluemix_ctx bluemix_context;
-	uint32_t hawkbit_failures = 0, bluemix_failures = 0;
+	uint32_t hawkbit_failures = 0;
 	int ret;
-	struct sensor_value temp_value;
 
 	OTA_INFO("Starting FOTA Service Thread\n");
-
-	temp_sensor_dev = device_get_binding(GENERIC_TEMP_SENSOR_DEVICE);
-	if (!temp_sensor_dev) {
-		OTA_INFO("Failed to find a temperature sensor\n"
-			 "(Using random values instead)\n");
-	}
-
 
 	do {
 		k_sleep(poll_sleep);
@@ -184,66 +178,104 @@ static void fota_service(void)
 			hawkbit_failures = 0;
 		}
 #endif
-		if (!bluemix_inited) {
-			ret = bluemix_init(&bluemix_context);
-			if (!ret) {
-				bluemix_inited = 1;
-				/* restart the failed attempt counter */
-				bluemix_failures = 0;
-			} else {
-				bluemix_failures++;
-				OTA_DBG("Failed Bluemix init - attempt %d\n\n\n",
-					bluemix_failures);
-			}
-		}
-		if (bluemix_inited) {
-			/*
-			 * Initialize the temp sensor values with dummy
-			 * data.  If we have no HW sensor or encounter
-			 * errors, use these values as defaults.
-			 */
-			temp_value.val1 = 23;
-			temp_value.val2 = 0;
-
-			/* gather temp data from real sensor */
-			if (temp_sensor_dev) {
-				ret = sensor_sample_fetch(temp_sensor_dev);
-				if (ret) {
-					OTA_ERR("temp sensor fetch error: %d\n", ret);
-				} else {
-					ret = sensor_channel_get(temp_sensor_dev,
-							SENSOR_CHAN_TEMP,
-							&temp_value);
-					if (ret) {
-						OTA_ERR("sensor_channel_get error: %d\n", ret);
-					}
-				}
-			}
-
-			OTA_DBG("Read temp sensor: %d.%dC\n", temp_value.val1, temp_value.val2);
-
-			/* use the whole number portion of temp sensor value */
-			ret = bluemix_pub_temp_c(&bluemix_context, temp_value.val1);
-			if (ret) {
-				OTA_ERR("bluemix_pub_temp_c: %d\n", ret);
-				bluemix_failures++;
-			} else {
-				bluemix_failures = 0;
-			}
-
-			/* Either way, shut it down. */
-			ret = bluemix_fini(&bluemix_context);
-			OTA_DBG("bluemix_fini: %d\n", ret);
-			bluemix_inited = false;
-		}
-
-		if (bluemix_failures == MAX_SERVER_FAIL) {
-			printk("Too many bluemix errors, rebooting!\n");
-			sys_reboot(0);
-		}
 
 		stack_analyze("FOTA Thread", fota_thread_stack, FOTA_STACK_SIZE);
 	} while (1);
+}
+
+static int temp_init(void)
+{
+	temp_sensor_dev = device_get_binding(GENERIC_TEMP_SENSOR_DEVICE);
+	if (!temp_sensor_dev) {
+		OTA_INFO("Failed to find a temperature sensor\n"
+			 "(Using random values instead)\n");
+	}
+	return 0;
+}
+
+static int get_temp_sensor_data(struct sensor_value *temp_value)
+{
+	int ret = 0;
+
+	/*
+	 * Initialize the temp sensor values with dummy
+	 * data.  If we have no HW sensor or encounter
+	 * errors, use these values as defaults.
+	 */
+	temp_value->val1 = 23;
+	temp_value->val2 = 0;
+
+	/* gather temp data from real sensor */
+	if (temp_sensor_dev) {
+		ret = sensor_sample_fetch(temp_sensor_dev);
+		if (ret) {
+			OTA_ERR("temp sensor fetch error: %d\n", ret);
+		} else {
+			ret = sensor_channel_get(temp_sensor_dev,
+						 SENSOR_CHAN_TEMP,
+						 temp_value);
+			if (ret) {
+				OTA_ERR("sensor_channel_get error: %d\n", ret);
+			}
+		}
+	}
+
+	if (!ret) {
+		OTA_DBG("Read temp sensor: %d.%dC\n",
+			temp_value->val1, temp_value->val2);
+	}
+
+	return ret;
+}
+
+static void bluemix_service(void)
+{
+	static struct bluemix_ctx bluemix_context;
+	uint32_t bluemix_failures = 0;
+	struct sensor_value temp_value;
+	int ret;
+
+	while (bluemix_failures < MAX_SERVER_FAIL) {
+		k_sleep(bluemix_sleep);
+#if defined(CONFIG_BLUETOOTH)
+		if (!bt_connection_state) {
+			OTA_DBG("No BT LE connection\n");
+			continue;
+		}
+#endif
+
+		ret = bluemix_init(&bluemix_context);
+		if (!ret) {
+			/* restart the failed attempt counter */
+			bluemix_failures = 0;
+		} else {
+			bluemix_failures++;
+			OTA_DBG("Failed Bluemix init - attempt %d\n\n\n",
+				bluemix_failures);
+			continue;
+		}
+
+		get_temp_sensor_data(&temp_value);
+
+		/* use the whole number portion of temp sensor value */
+		ret = bluemix_pub_temp_c(&bluemix_context, temp_value.val1);
+		if (ret) {
+			OTA_ERR("bluemix_pub_temp_c: %d\n", ret);
+			bluemix_failures++;
+		} else {
+			bluemix_failures = 0;
+		}
+
+		/* Either way, shut it down. */
+		ret = bluemix_fini(&bluemix_context);
+		OTA_DBG("bluemix_fini: %d\n", ret);
+
+		stack_analyze("Bluemix Thread", bluemix_thread_stack,
+			      BLUEMIX_STACK_SIZE);
+	}
+
+	printk("Too many bluemix errors, rebooting!\n");
+	sys_reboot(0);
 }
 
 void blink_led(void)
@@ -317,9 +349,20 @@ void main(void)
  		return;
 	}
 
+	err = temp_init();
+	if (err) {
+		TC_END_REPORT(TC_FAIL);
+		return;
+	}
+
 	TC_PRINT("Starting the FOTA Service\n");
 	k_thread_spawn(&fota_thread_stack[0], FOTA_STACK_SIZE,
 			(k_thread_entry_t) fota_service,
+			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
+
+	TC_PRINT("Starting the Bluemix Service\n");
+	k_thread_spawn(&bluemix_thread_stack[0], BLUEMIX_STACK_SIZE,
+			(k_thread_entry_t) bluemix_service,
 			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
 
 	TC_PRINT("Blinking LED\n");
