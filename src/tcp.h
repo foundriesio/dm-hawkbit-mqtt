@@ -20,6 +20,13 @@ enum tcp_context_id {
 };
 
 int tcp_init(void);
+
+/* Currently, tcp contexts must lock the network interface before
+ * using it. */
+void tcp_interface_lock(void);
+void tcp_interface_unlock(void);
+
+/* These must be called/used with the TCP interface lock held. */
 void tcp_cleanup(enum tcp_context_id id, bool put_net_context);
 int tcp_connect(enum tcp_context_id id);
 int tcp_send(enum tcp_context_id id, const unsigned char *buf, size_t size);

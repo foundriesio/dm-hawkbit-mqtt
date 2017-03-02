@@ -61,6 +61,7 @@ struct tcp_context {
 };
 
 static struct tcp_context contexts[TCP_CTX_MAX];
+static struct k_sem interface_lock;
 
 static inline int invalid_id(enum tcp_context_id id)
 {
@@ -199,7 +200,19 @@ int tcp_init(void)
 	contexts[TCP_CTX_HAWKBIT].peer_port = HAWKBIT_PORT;
 	contexts[TCP_CTX_BLUEMIX].peer_port = BLUEMIX_PORT;
 
+	k_sem_init(&interface_lock, 1, 1);
+
 	return 0;
+}
+
+void tcp_interface_lock(void)
+{
+	k_sem_take(&interface_lock, K_FOREVER);
+}
+
+void tcp_interface_unlock()
+{
+	k_sem_give(&interface_lock);
 }
 
 static int tcp_connect_context(struct tcp_context *ctx)
