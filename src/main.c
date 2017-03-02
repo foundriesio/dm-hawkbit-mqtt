@@ -163,6 +163,8 @@ static void fota_service(void)
 		}
 #endif
 
+		tcp_interface_lock();
+
 #if (CONFIG_DM_BACKEND == BACKEND_HAWKBIT)
 		ret = hawkbit_ddi_poll();
 		if (ret < 0) {
@@ -178,6 +180,8 @@ static void fota_service(void)
 			hawkbit_failures = 0;
 		}
 #endif
+
+		tcp_interface_unlock();
 
 		stack_analyze("FOTA Thread", fota_thread_stack, FOTA_STACK_SIZE);
 	} while (1);
@@ -244,6 +248,8 @@ static void bluemix_service(void)
 		}
 #endif
 
+		tcp_interface_lock();
+
 		ret = bluemix_init(&bluemix_context);
 		if (!ret) {
 			/* restart the failed attempt counter */
@@ -252,6 +258,7 @@ static void bluemix_service(void)
 			bluemix_failures++;
 			OTA_DBG("Failed Bluemix init - attempt %d\n\n\n",
 				bluemix_failures);
+			tcp_interface_unlock();
 			continue;
 		}
 
@@ -269,6 +276,8 @@ static void bluemix_service(void)
 		/* Either way, shut it down. */
 		ret = bluemix_fini(&bluemix_context);
 		OTA_DBG("bluemix_fini: %d\n", ret);
+
+		tcp_interface_unlock();
 
 		stack_analyze("Bluemix Thread", bluemix_thread_stack,
 			      BLUEMIX_STACK_SIZE);
