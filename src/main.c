@@ -35,7 +35,7 @@ char bluemix_thread_stack[BLUEMIX_STACK_SIZE];
 int poll_sleep = K_SECONDS(30);
 struct device *flash_dev;
 
-#define GENERIC_TEMP_SENSOR_DEVICE	"TEMP_0"
+#define GENERIC_TEMP_SENSOR_DEVICE	"fota-demo-temp"
 struct device *temp_sensor_dev;
 int bluemix_sleep = K_SECONDS(3);
 
