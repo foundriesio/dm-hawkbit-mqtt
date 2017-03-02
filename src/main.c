@@ -68,7 +68,21 @@ static struct bt_conn_cb conn_callbacks = {
 };
 #endif
 
-static int fota_service_update_acid(struct boot_acid *acid)
+static int start_tcp(void)
+{
+	int ret;
+
+	TC_PRINT("Initializing TCP\n");
+	ret = tcp_init();
+	if (ret) {
+		TC_END_RESULT(TC_FAIL);
+	} else {
+		TC_END_RESULT(TC_PASS);
+	}
+	return ret;
+}
+
+static int fota_update_acid(struct boot_acid *acid)
 {
 	int ret = 0;
 	if (acid->update != -1) {
@@ -84,31 +98,19 @@ static int fota_service_update_acid(struct boot_acid *acid)
 	return ret;
 }
 
-/* Firmware OTA thread (Hawkbit) */
-static void fota_service(void)
+static int fota_init(void)
 {
-	static int bluemix_inited = 0;
-	static struct bluemix_ctx bluemix_context;
-	uint32_t hawkbit_failures = 0, bluemix_failures = 0;
 	struct boot_acid acid;
 	uint8_t boot_status;
 	int ret;
-	struct sensor_value temp_value;
 
-	OTA_INFO("Starting FOTA Service Thread\n");
+	TC_PRINT("Initializing FOTA backend\n");
 
 	flash_dev = device_get_binding(FLASH_DRIVER_NAME);
 	if (!flash_dev) {
 		OTA_ERR("Failed to find the flash driver\n");
 		TC_END_RESULT(TC_FAIL);
-		TC_END_REPORT(TC_FAIL);
-		return;
-	}
-
-	temp_sensor_dev = device_get_binding(GENERIC_TEMP_SENSOR_DEVICE);
-	if (!temp_sensor_dev) {
-		OTA_INFO("Failed to find a temperature sensor\n"
-			 "(Using random values instead)\n");
+		return -ENODEV;
 	}
 
 	/* Update boot status and acid */
@@ -124,28 +126,39 @@ static void fota_service(void)
 		if (ret) {
 			OTA_ERR("flash_erase error %d\n", ret);
 			TC_END_RESULT(TC_FAIL);
-			TC_END_REPORT(TC_FAIL);
-			return;
+			return ret;
 		} else {
 			OTA_DBG("Flash bank (offset %x) erased successfully\n",
 				FLASH_BANK1_OFFSET);
 		}
-		ret = fota_service_update_acid(&acid);
+		ret = fota_update_acid(&acid);
 		if (ret) {
 			TC_END_RESULT(TC_FAIL);
-			TC_END_REPORT(TC_FAIL);
-			return;
+			return ret;
 		}
 	}
 
-	ret = tcp_init();
-	if (ret) {
-		TC_END_RESULT(TC_FAIL);
-		TC_END_REPORT(TC_FAIL);
-		return;
+	TC_END_RESULT(TC_PASS);
+	return 0;
+}
+
+/* Firmware OTA thread (Hawkbit) */
+static void fota_service(void)
+{
+	static int bluemix_inited = 0;
+	static struct bluemix_ctx bluemix_context;
+	uint32_t hawkbit_failures = 0, bluemix_failures = 0;
+	int ret;
+	struct sensor_value temp_value;
+
+	OTA_INFO("Starting FOTA Service Thread\n");
+
+	temp_sensor_dev = device_get_binding(GENERIC_TEMP_SENSOR_DEVICE);
+	if (!temp_sensor_dev) {
+		OTA_INFO("Failed to find a temperature sensor\n"
+			 "(Using random values instead)\n");
 	}
 
-	TC_END_RESULT(TC_PASS);
 
 	do {
 		k_sleep(poll_sleep);
@@ -254,6 +267,7 @@ void blink_led(void)
 
 void main(void)
 {
+	int err;
 
 	set_device_id();
 
@@ -263,8 +277,6 @@ void main(void)
 	TC_START("Running Built in Self Test (BIST)");
 
 #if defined(CONFIG_BLUETOOTH)
-	int err;
-
 	/* Storage used to provide a BT MAC based on the serial number */
 	TC_PRINT("Setting Bluetooth MAC\n");
 	bt_storage_init();
@@ -292,6 +304,18 @@ void main(void)
 		return;
 	}
 #endif
+
+	err = start_tcp();
+	if (err) {
+		TC_END_REPORT(TC_FAIL);
+		return;
+	}
+
+	err = fota_init();
+	if (err) {
+		TC_END_REPORT(TC_FAIL);
+ 		return;
+	}
 
 	TC_PRINT("Starting the FOTA Service\n");
 	k_thread_spawn(&fota_thread_stack[0], FOTA_STACK_SIZE,
