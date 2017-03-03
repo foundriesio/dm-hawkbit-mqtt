@@ -35,8 +35,8 @@ char bluemix_thread_stack[BLUEMIX_STACK_SIZE];
 int poll_sleep = K_SECONDS(30);
 struct device *flash_dev;
 
-#define GENERIC_TEMP_SENSOR_DEVICE	"fota-demo-temp"
-struct device *temp_sensor_dev;
+#define GENERIC_MCU_TEMP_SENSOR_DEVICE	"fota-mcu-temp"
+struct device *mcu_temp_sensor_dev;
 int bluemix_sleep = K_SECONDS(3);
 
 #if defined(CONFIG_BLUETOOTH)
@@ -189,15 +189,17 @@ static void fota_service(void)
 
 static int temp_init(void)
 {
-	temp_sensor_dev = device_get_binding(GENERIC_TEMP_SENSOR_DEVICE);
-	if (!temp_sensor_dev) {
-		OTA_INFO("Failed to find a temperature sensor\n"
+	mcu_temp_sensor_dev =
+		device_get_binding(GENERIC_MCU_TEMP_SENSOR_DEVICE);
+
+	if (!mcu_temp_sensor_dev) {
+		OTA_INFO("Failed to find MCU temperature sensor\n"
 			 "(Using random values instead)\n");
 	}
 	return 0;
 }
 
-static int get_temp_sensor_data(struct sensor_value *temp_value)
+static int get_temp_sensor_data(struct sensor_value *mcu_temp_value)
 {
 	int ret = 0;
 
@@ -206,18 +208,18 @@ static int get_temp_sensor_data(struct sensor_value *temp_value)
 	 * data.  If we have no HW sensor or encounter
 	 * errors, use these values as defaults.
 	 */
-	temp_value->val1 = 23;
-	temp_value->val2 = 0;
+	mcu_temp_value->val1 = 23;
+	mcu_temp_value->val2 = 0;
 
 	/* gather temp data from real sensor */
-	if (temp_sensor_dev) {
-		ret = sensor_sample_fetch(temp_sensor_dev);
+	if (mcu_temp_sensor_dev) {
+		ret = sensor_sample_fetch(mcu_temp_sensor_dev);
 		if (ret) {
-			OTA_ERR("temp sensor fetch error: %d\n", ret);
+			OTA_ERR("mcu temp sensor fetch error: %d\n", ret);
 		} else {
-			ret = sensor_channel_get(temp_sensor_dev,
+			ret = sensor_channel_get(mcu_temp_sensor_dev,
 						 SENSOR_CHAN_TEMP,
-						 temp_value);
+						 mcu_temp_value);
 			if (ret) {
 				OTA_ERR("sensor_channel_get error: %d\n", ret);
 			}
@@ -226,7 +228,7 @@ static int get_temp_sensor_data(struct sensor_value *temp_value)
 
 	if (!ret) {
 		OTA_DBG("Read temp sensor: %d.%dC\n",
-			temp_value->val1, temp_value->val2);
+			mcu_temp_value->val1, mcu_temp_value->val2);
 	}
 
 	return ret;
@@ -236,7 +238,7 @@ static void bluemix_service(void)
 {
 	static struct bluemix_ctx bluemix_context;
 	uint32_t bluemix_failures = 0;
-	struct sensor_value temp_value;
+	struct sensor_value mcu_temp_value;
 	int ret;
 
 	while (bluemix_failures < MAX_SERVER_FAIL) {
@@ -262,12 +264,13 @@ static void bluemix_service(void)
 			continue;
 		}
 
-		get_temp_sensor_data(&temp_value);
+		get_temp_sensor_data(&mcu_temp_value);
 
-		/* use the whole number portion of temp sensor value */
-		ret = bluemix_pub_temp_c(&bluemix_context, temp_value.val1);
+		/* use the whole number portion of mcu temp sensor value */
+		ret = bluemix_pub_sensor_c(&bluemix_context,
+					   mcu_temp_value.val1);
 		if (ret) {
-			OTA_ERR("bluemix_pub_temp_c: %d\n", ret);
+			OTA_ERR("bluemix_sensor_c: %d\n", ret);
 			bluemix_failures++;
 		} else {
 			bluemix_failures = 0;

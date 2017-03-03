@@ -86,11 +86,11 @@ int bluemix_init(struct bluemix_ctx *ctx);
 int bluemix_fini(struct bluemix_ctx *ctx);
 
 /**
- * @brief Publish a temperature reading from the device.
+ * @brief Publish sensor data reading from the device.
  * @param ctx Bluemix context to publish temperature on.
- * @param temperature Temperature reading in degrees centigrade.
+ * @param mcu_temp MCU temperature reading in degrees centigrade.
  * @return 0 on success, negative errno on failure.
  */
-int bluemix_pub_temp_c(struct bluemix_ctx *ctx, int temperature);
+int bluemix_pub_sensor_c(struct bluemix_ctx *ctx, int mcu_temp);
 
 #endif	/* __FOTA_BLUEMIX_H__ */

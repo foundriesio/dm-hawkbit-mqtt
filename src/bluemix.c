@@ -364,17 +364,17 @@ int bluemix_fini(struct bluemix_ctx *ctx)
 	return ret;
 }
 
-int bluemix_pub_temp_c(struct bluemix_ctx *ctx, int temperature)
+int bluemix_pub_sensor_c(struct bluemix_ctx *ctx, int mcu_temp)
 {
 	struct mqtt_publish_msg *pub_msg = &ctx->pub_msg;
 	INIT_DEVICE_TOPIC(ctx, "iot-2/type/%s/id/%s/evt/status/fmt/json");
 	snprintf(ctx->bm_message, sizeof(ctx->bm_message),
 		"{"
 			"\"d\":{"
-				"\"temperature\":%d"
+				"\"mcutemp\":%d"
 			"}"
 		"}",
-		temperature);
+		mcu_temp);
 	pub_msg->msg = ctx->bm_message;
 	pub_msg->msg_len = strlen(pub_msg->msg);
 	pub_msg->qos = MQTT_QoS0;
