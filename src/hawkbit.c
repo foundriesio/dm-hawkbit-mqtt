@@ -86,6 +86,8 @@ typedef enum {
 	HAWKBIT_EXEC_RESUMED,
 } hawkbit_exec_status_t;
 
+#define HAWKBIT_RX_TIMEOUT	K_SECONDS(3)
+
 /* Utils */
 static int atoi_n(const char *s, int len)
 {
@@ -444,9 +446,11 @@ static int hawkbit_query(uint8_t *tcp_buffer, size_t size,
 		OTA_ERR("Failed to send buffer, err %d\n", ret);
 		return ret;
 	}
-	ret = tcp_recv(TCP_CTX_HAWKBIT, (char *) tcp_buffer, size, K_FOREVER);
+	ret = tcp_recv(TCP_CTX_HAWKBIT, (char *) tcp_buffer,
+		       size, HAWKBIT_RX_TIMEOUT);
 	if (ret <= 0) {
 		OTA_ERR("No received data (ret=%d)\n", ret);
+		tcp_cleanup(TCP_CTX_HAWKBIT, true);
 		return -1;
 	}
 
