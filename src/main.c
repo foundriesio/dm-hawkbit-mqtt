@@ -237,6 +237,7 @@ static int get_temp_sensor_data(struct sensor_value *mcu_temp_value)
 static void bluemix_service(void)
 {
 	static struct bluemix_ctx bluemix_context;
+	static int bluemix_inited = 0;
 	uint32_t bluemix_failures = 0;
 	struct sensor_value mcu_temp_value;
 	int ret;
@@ -252,16 +253,19 @@ static void bluemix_service(void)
 
 		tcp_interface_lock();
 
-		ret = bluemix_init(&bluemix_context);
-		if (!ret) {
-			/* restart the failed attempt counter */
-			bluemix_failures = 0;
-		} else {
-			bluemix_failures++;
-			OTA_DBG("Failed Bluemix init - attempt %d\n\n\n",
-				bluemix_failures);
-			tcp_interface_unlock();
-			continue;
+		if (!bluemix_inited) {
+			ret = bluemix_init(&bluemix_context);
+			if (!ret) {
+				/* restart the failed attempt counter */
+				bluemix_failures = 0;
+				bluemix_inited = 1;
+			} else {
+				bluemix_failures++;
+				OTA_DBG("Failed Bluemix init - attempt %d\n\n\n",
+					bluemix_failures);
+				tcp_interface_unlock();
+				continue;
+			}
 		}
 
 		get_temp_sensor_data(&mcu_temp_value);
@@ -277,8 +281,8 @@ static void bluemix_service(void)
 		}
 
 		/* Either way, shut it down. */
-		ret = bluemix_fini(&bluemix_context);
 		if (ret) {
+			ret = bluemix_fini(&bluemix_context);
 			OTA_ERR("bluemix_fini: %d\n", ret);
 		}
 
