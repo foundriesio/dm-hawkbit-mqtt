@@ -48,6 +48,21 @@
 #define PEER_IPADDR		CONFIG_NET_SAMPLES_PEER_IPV4_ADDR
 #endif
 
+#if defined(CONFIG_NET_CONTEXT_NBUF_POOL)
+NET_NBUF_TX_POOL_DEFINE(fota_tx_tcp, 15);
+NET_NBUF_DATA_POOL_DEFINE(fota_data_tcp, 30);
+
+static struct net_buf_pool *tx_tcp_pool(void)
+{
+	return &fota_tx_tcp;
+}
+
+static struct net_buf_pool *data_tcp_pool(void)
+{
+	return &fota_data_tcp;
+}
+#endif
+
 /* Global address to be set from RA */
 static struct sockaddr client_addr;
 
@@ -236,6 +251,15 @@ static int tcp_connect_context(struct tcp_context *ctx)
 				&NET_SIN_ADDR(&client_addr));
 		NET_SIN_FAMILY(&my_addr) = FOTA_AF_INET;
 		NET_SIN_PORT(&my_addr) = 0;
+
+/*
+ * This configuration is used for 6lowpan TCP pools which require
+ * extra save/restore buffers to be allocated during compress/uncompress
+ * operations.
+ */
+#if defined(CONFIG_NET_CONTEXT_NBUF_POOL)
+		net_context_setup_pools(ctx->net_ctx, tx_tcp_pool, data_tcp_pool);
+#endif
 
 		rc = net_context_bind(ctx->net_ctx, &my_addr, NET_SIN_SIZE);
 		if (rc < 0) {
