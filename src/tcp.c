@@ -288,7 +288,12 @@ static int tcp_connect_context(struct tcp_context *ctx)
 	rc = net_context_connect(ctx->net_ctx, &dst_addr, NET_SIN_SIZE,
 				 NULL, SERVER_CONNECT_TIMEOUT, NULL);
 	if (rc < 0) {
-		OTA_ERR("Cannot connect to server (%d)\n", rc);
+		char buf[NET_IPV6_ADDR_LEN];
+
+		OTA_ERR("Cannot connect to server: %s:%d (%d)\n",
+			net_addr_ntop(FOTA_AF_INET, &NET_SIN_ADDR(&dst_addr),
+				buf, sizeof(buf)),
+			ctx->peer_port, rc);
 		tcp_cleanup_context(ctx, true);
 		return -EIO;
 	}
