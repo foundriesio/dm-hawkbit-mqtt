@@ -34,7 +34,9 @@ int poll_sleep = K_SECONDS(30);
 struct device *flash_dev;
 
 #define GENERIC_MCU_TEMP_SENSOR_DEVICE	"fota-mcu-temp"
+#define GENERIC_OFFCHIP_TEMP_SENSOR_DEVICE "fota-offchip-temp"
 struct device *mcu_temp_sensor_dev;
+struct device *offchip_temp_sensor_dev;
 int bluemix_sleep = K_SECONDS(3);
 
 #if defined(CONFIG_BLUETOOTH)
@@ -193,47 +195,41 @@ static int temp_init(void)
 {
 	mcu_temp_sensor_dev =
 		device_get_binding(GENERIC_MCU_TEMP_SENSOR_DEVICE);
+	offchip_temp_sensor_dev =
+		device_get_binding(GENERIC_OFFCHIP_TEMP_SENSOR_DEVICE);
 
-	if (!mcu_temp_sensor_dev) {
-		OTA_INFO("Failed to find MCU temperature sensor\n"
-			 "(Using random values instead)\n");
-	}
+	OTA_INFO("%s MCU temperature sensor %s%s\n",
+		 mcu_temp_sensor_dev ? "Found" : "Did not find",
+		 GENERIC_MCU_TEMP_SENSOR_DEVICE,
+		 mcu_temp_sensor_dev ? "" : "\n(Using default values)");
+	OTA_INFO("%s off-chip temperature sensor %s\n",
+		 offchip_temp_sensor_dev ? "Found" : "Did not find",
+		 GENERIC_OFFCHIP_TEMP_SENSOR_DEVICE);
 	return 0;
 }
 
-static int get_temp_sensor_data(struct sensor_value *mcu_temp_value)
+static int get_temp_sensor_data(struct device *temp_dev,
+				struct sensor_value *temp_value,
+				bool use_defaults_on_null)
 {
 	int ret = 0;
 
-	/*
-	 * Initialize the temp sensor values with dummy
-	 * data.  If we have no HW sensor or encounter
-	 * errors, use these values as defaults.
-	 */
-	mcu_temp_value->val1 = 23;
-	mcu_temp_value->val2 = 0;
-
-	/* gather temp data from real sensor */
-	if (mcu_temp_sensor_dev) {
-		ret = sensor_sample_fetch(mcu_temp_sensor_dev);
-		if (ret) {
-			OTA_ERR("mcu temp sensor fetch error: %d\n", ret);
+	if (!temp_dev) {
+		if (use_defaults_on_null) {
+			temp_value->val1 = 23;
+			temp_value->val2 = 0;
+			return 0;
 		} else {
-			ret = sensor_channel_get(mcu_temp_sensor_dev,
-						 SENSOR_CHAN_TEMP,
-						 mcu_temp_value);
-			if (ret) {
-				OTA_ERR("sensor_channel_get error: %d\n", ret);
-			}
+			return -ENODEV;
 		}
 	}
 
-	if (!ret) {
-		OTA_DBG("Read temp sensor: %d.%dC\n",
-			mcu_temp_value->val1, mcu_temp_value->val2);
+	ret = sensor_sample_fetch(temp_dev);
+	if (ret) {
+		return ret;
 	}
 
-	return ret;
+	return sensor_channel_get(temp_dev, SENSOR_CHAN_TEMP, temp_value);
 }
 
 static void bluemix_service(void)
@@ -242,6 +238,7 @@ static void bluemix_service(void)
 	static int bluemix_inited = 0;
 	uint32_t bluemix_failures = 0;
 	struct sensor_value mcu_temp_value;
+	struct sensor_value offchip_temp_value;
 	int ret;
 
 	while (bluemix_failures < MAX_SERVER_FAIL) {
@@ -270,16 +267,56 @@ static void bluemix_service(void)
 			}
 		}
 
-		get_temp_sensor_data(&mcu_temp_value);
-
-		/* use the whole number portion of mcu temp sensor value */
-		ret = bluemix_pub_status_json(&bluemix_context,
-					      "{"
-					              "\"mcutemp\":%d"
-					      "}",
-					      mcu_temp_value.val1);
+		/*
+		 * Fetch temperature sensor values. If we don't have
+		 * an MCU temperature sensor or encounter errors
+		 * reading it, use these values as defaults.
+		 */
+		ret = get_temp_sensor_data(mcu_temp_sensor_dev,
+					   &mcu_temp_value, true);
 		if (ret) {
-			OTA_ERR("bluemix_sensor_c: %d\n", ret);
+			OTA_ERR("MCU temperature sensor error: %d\n", ret);
+		} else {
+			OTA_DBG("Read MCU temp sensor: %d.%dC\n",
+				mcu_temp_value.val1, mcu_temp_value.val2);
+		}
+
+		ret = get_temp_sensor_data(offchip_temp_sensor_dev,
+					   &offchip_temp_value, false);
+		if (offchip_temp_sensor_dev) {
+			if (ret) {
+				OTA_ERR("Off-chip temperature sensor error: %d\n", ret);
+			} else {
+				OTA_DBG("Read off-chip temp sensor: %d.%dC\n",
+					offchip_temp_value.val1,
+					offchip_temp_value.val2);
+			}
+		}
+
+		/*
+		 * Use the whole number portion of temperature sensor
+		 * values. Don't publish off-chip values if there is
+		 * no sensor, or if there were errors fetching the
+		 * values.
+		 */
+		if (ret) {
+			ret = bluemix_pub_status_json(&bluemix_context,
+						      "{"
+						              "\"mcutemp\":%d"
+						      "}",
+						      mcu_temp_value.val1);
+		} else {
+			ret = bluemix_pub_status_json(&bluemix_context,
+						      "{"
+						              "\"mcutemp\":%d,"
+						              "\"temperature\":%d,"
+						      "}",
+						      mcu_temp_value.val1,
+						      offchip_temp_value.val1);
+		}
+
+		if (ret) {
+			OTA_ERR("bluemix_pub_status_json: %d\n", ret);
 			bluemix_failures++;
 		} else {
 			bluemix_failures = 0;
