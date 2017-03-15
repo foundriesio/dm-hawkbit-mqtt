@@ -147,8 +147,10 @@ static int fota_init(void)
 /* Firmware OTA thread (Hawkbit) */
 static void fota_service(void)
 {
+#if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
 	uint32_t hawkbit_failures = 0;
 	int ret;
+#endif
 
 	OTA_INFO("Starting FOTA Service Thread\n");
 
