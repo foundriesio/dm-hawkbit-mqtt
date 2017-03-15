@@ -17,6 +17,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 #include "ota_debug.h"
 #include "device.h"
@@ -363,17 +364,33 @@ int bluemix_fini(struct bluemix_ctx *ctx)
 	return ret;
 }
 
-int bluemix_pub_sensor_c(struct bluemix_ctx *ctx, int mcu_temp)
+int bluemix_pub_status_json(struct bluemix_ctx *ctx,
+			    const char *fmt, ...)
 {
 	struct mqtt_publish_msg *pub_msg = &ctx->pub_msg;
+	va_list vargs;
+	int ret;
+
 	INIT_DEVICE_TOPIC(ctx, "iot-2/type/%s/id/%s/evt/status/fmt/json");
-	snprintf(ctx->bm_message, sizeof(ctx->bm_message),
-		"{"
-			"\"d\":{"
-				"\"mcutemp\":%d"
-			"}"
-		"}",
-		mcu_temp);
+
+	/* Fill in the initial '{"d":'. */
+	ret = snprintf(ctx->bm_message, sizeof(ctx->bm_message), "{\"d\":");
+	if (ret == sizeof(ctx->bm_message) - 1) {
+		return -ENOMEM;
+	}
+	/* Add the user data. */
+	va_start(vargs, fmt);
+	ret += vsnprintf(ctx->bm_message + ret, sizeof(ctx->bm_message) - ret,
+			 fmt, vargs);
+	va_end(vargs);
+	if (ret > sizeof(ctx->bm_message) - 2) {
+		/* Overflow check: 2 = (1 for '\0') + (1 for "}") */
+		return -ENOMEM;
+	}
+	/* Append the closing brace. */
+	snprintf(ctx->bm_message + ret, sizeof(ctx->bm_message) - ret, "}");
+
+	/* Fill out the MQTT publication, and ship it. */
 	pub_msg->msg = ctx->bm_message;
 	pub_msg->msg_len = strlen(pub_msg->msg);
 	pub_msg->qos = MQTT_QoS0;

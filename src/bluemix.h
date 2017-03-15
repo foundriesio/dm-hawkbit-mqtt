@@ -9,6 +9,7 @@
 
 #include <net/mqtt.h>
 #include <kernel.h>
+#include <toolchain.h>
 
 #ifdef CONFIG_FOTA_DM_BACKEND_BLUEMIX
 #include "bluemix_dm.h"
@@ -85,11 +86,27 @@ int bluemix_init(struct bluemix_ctx *ctx);
 int bluemix_fini(struct bluemix_ctx *ctx);
 
 /**
- * @brief Publish sensor data reading from the device.
- * @param ctx Bluemix context to publish temperature on.
- * @param mcu_temp MCU temperature reading in degrees centigrade.
+ * @brief Publish device status reading in JSON format.
+ *
+ * The format string and arguments should correspond to the JSON
+ * value of the "d" field in a Bluemix JSON status publication.
+ *
+ * For example, to publish an "mcutemp" field with value 23, you could
+ * write:
+ *
+ *    bluemix_pub_status_json(ctx, "{\"mcutemp\":%d}", 23);
+ *
+ * Do *NOT* write:
+ *
+ *    bluemix_pub_status_json(ctx, "{ \"d\": { \"mcutemp\":%d } }", 23);
+ *
+ * @param ctx Bluemix context to publish status for.
+ * @param fmt printf()-like format for JSON sub-string to publish as
+ *            status message's data field ("d"). Remaining arguments
+ *            are used to build the JSON string to publish with fmt.
  * @return 0 on success, negative errno on failure.
  */
-int bluemix_pub_sensor_c(struct bluemix_ctx *ctx, int mcu_temp);
+int __printf_like(2, 3) bluemix_pub_status_json(struct bluemix_ctx *ctx,
+						const char *fmt, ...);
 
 #endif	/* __FOTA_BLUEMIX_H__ */

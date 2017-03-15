@@ -273,8 +273,11 @@ static void bluemix_service(void)
 		get_temp_sensor_data(&mcu_temp_value);
 
 		/* use the whole number portion of mcu temp sensor value */
-		ret = bluemix_pub_sensor_c(&bluemix_context,
-					   mcu_temp_value.val1);
+		ret = bluemix_pub_status_json(&bluemix_context,
+					      "{"
+					              "\"mcutemp\":%d"
+					      "}",
+					      mcu_temp_value.val1);
 		if (ret) {
 			OTA_ERR("bluemix_sensor_c: %d\n", ret);
 			bluemix_failures++;
