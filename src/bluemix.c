@@ -40,7 +40,7 @@
  */
 #define INIT_DEVICE_TOPIC(ctx, fmt)					\
 	snprintf(ctx->bm_topic, sizeof(ctx->bm_topic), fmt,		\
-		 CONFIG_BLUEMIX_DEVICE_TYPE, ctx->bm_id)
+		 CONFIG_FOTA_BLUEMIX_DEVICE_TYPE, ctx->bm_id)
 
 static inline struct bluemix_ctx* mqtt_to_bluemix(struct mqtt_ctx *mqtt)
 {
@@ -258,10 +258,10 @@ int bluemix_init(struct bluemix_ctx *ctx)
 	 * Initialize the IDs etc. before doing anything else.
 	 */
 	snprintf(ctx->bm_id, sizeof(ctx->bm_id), "%s-%08x",
-		 CONFIG_BLUEMIX_DEVICE_TYPE, product_id.number);
+		 CONFIG_FOTA_BLUEMIX_DEVICE_TYPE, product_id.number);
 	snprintf(ctx->client_id, sizeof(ctx->client_id),
 		"d:%s:%s:%s", CONFIG_FOTA_BLUEMIX_ORG,
-		CONFIG_BLUEMIX_DEVICE_TYPE,
+		CONFIG_FOTA_BLUEMIX_DEVICE_TYPE,
 		ctx->bm_id);
 	snprintf(ctx->bm_auth_token, sizeof(ctx->bm_auth_token),
 		 "%08x", product_id.number);
