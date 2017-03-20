@@ -1,7 +1,7 @@
-#Dependencies
+# Dependencies
 View the build status of the dependent components for this project
 
-##MCU Boot Loader
+## MCU Boot Loader
 
 ### Build Status
 
