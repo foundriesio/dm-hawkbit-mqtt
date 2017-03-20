@@ -11,7 +11,7 @@
 #include <net/mqtt.h>
 #include <kernel.h>
 
-#if (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
+#ifdef CONFIG_FOTA_DM_BACKEND_BLUEMIX
 #include "bluemix_dm.h"
 #endif
 

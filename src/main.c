@@ -18,7 +18,7 @@
 #include "bt_ipss.h"
 #include "ota_debug.h"
 #include "boot_utils.h"
-#if (CONFIG_DM_BACKEND == BACKEND_HAWKBIT)
+#if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
 #include "hawkbit.h"
 #endif
 #include "bluemix.h"
@@ -165,7 +165,7 @@ static void fota_service(void)
 
 		tcp_interface_lock();
 
-#if (CONFIG_DM_BACKEND == BACKEND_HAWKBIT)
+#if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
 		ret = hawkbit_ddi_poll();
 		if (ret < 0) {
 			hawkbit_failures++;
@@ -179,7 +179,7 @@ static void fota_service(void)
 			/* restart the failed attempt counter */
 			hawkbit_failures = 0;
 		}
-#endif
+#endif /* CONFIG_FOTA_DM_BACKEND_HAWKBIT */
 
 		tcp_interface_unlock();
 

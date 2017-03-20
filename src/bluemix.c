@@ -176,7 +176,7 @@ static int publish_message(struct bluemix_ctx *ctx)
 	return mqtt_tx_publish(&ctx->mqtt_ctx, &ctx->pub_msg);
 }
 
-#if (CONFIG_DM_BACKEND == BACKEND_BLUEMIX)
+#if defined(CONFIG_FOTA_DM_BACKEND_BLUEMIX)
 static void build_req_uuid(struct bluemix_ctx *ctx) /* TODO: improve this. */
 {
 	snprintf(ctx->bm_req_id, sizeof(ctx->bm_req_id),
@@ -245,7 +245,7 @@ static int become_managed_device(struct bluemix_ctx *ctx)
 	OTA_DBG("wait_for_mqtt: %d\n", ret);
 	return ret;
 }
-#endif	/* CONFIG_BLUEMIX_DM_BACKEND == BACKEND_BLUEMIX */
+#endif	/* CONFIG_FOTA_DM_BACKEND_BLUEMIX */
 
 int bluemix_init(struct bluemix_ctx *ctx)
 {
@@ -336,12 +336,12 @@ int bluemix_init(struct bluemix_ctx *ctx)
 		goto out;
 	}
 
-#if CONFIG_DM_BACKEND == BACKEND_BLUEMIX
+#if defined(CONFIG_FOTA_DM_BACKEND_BLUEMIX)
 	ret = become_managed_device(ctx);
 	if (ret) {
 		goto out;
 	}
-#endif
+#endif /* CONFIG_FOTA_DM_BACKEND_BLUEMIX */
 
 	return 0;
  out:

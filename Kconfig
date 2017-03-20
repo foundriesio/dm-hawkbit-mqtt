@@ -14,3 +14,26 @@ config APPLICATION_BASE
 	option env="PROJECT_BASE"
 
 source "$ZEPHYR_BASE/Kconfig.zephyr"
+
+choice
+	prompt "Select IoT device management system"
+	default FOTA_DM_BACKEND_HAWKBIT
+	help
+	  Linaro FOTA application supports more than one device management
+	  system.  Please choose the one you want your app to connect to.
+
+config FOTA_DM_BACKEND_HAWKBIT
+	bool "Hawkbit Device Management"
+	help
+	  hawkBit is a domain independent back-end framework for rolling
+	  out software updates to constrained edge devices as well as more
+	  powerful controllers and gateways connected to IP based networking
+	  infrastructure.
+
+config FOTA_DM_BACKEND_BLUEMIX
+	bool "IBM Bluemix IoT Platform"
+	select MQTT_LIB
+	help
+	  IBM Bluemix IoT platform allows you to securely connect, control and
+	  manage devices.
+endchoice
