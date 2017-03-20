@@ -1,0 +1,56 @@
+# Copyright (c) 2017 Linaro Limited
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+if FOTA_DEVICE_SOC_SERIES_STM32F4X
+
+config NET_IF_UNICAST_IPV6_ADDR_COUNT
+	int
+	default 3
+
+config NET_IF_MCAST_IPV6_ADDR_COUNT
+	int
+	default 2
+
+config NET_MAX_CONN
+	int
+	default 3
+
+config NET_MAX_CONTEXTS
+	int
+	default 3
+
+config NET_RX_STACK_SIZE
+	int
+	default 3072
+
+config NET_NBUF_DATA_SIZE
+	int
+	default 384
+
+config BLUETOOTH_RX_BUF_COUNT
+	int
+	default 20
+
+config BLUETOOTH_RX_BUF_LEN
+	int
+	default 128
+
+config BLUETOOTH_RX_STACK_SIZE
+	int
+	default 2048
+
+config TEXT_SECTION_OFFSET
+	hex
+	default 0x100
+
+config FLASH_LOAD_OFFSET
+	hex
+	default 0x20000
+
+config TEMP_STM32F401X_NAME
+	string
+	default fota-mcu-temp
+
+endif # FOTA_DEVICE_SOC_SERIES_STM32F4X

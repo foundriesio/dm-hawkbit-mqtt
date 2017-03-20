@@ -15,6 +15,44 @@ config APPLICATION_BASE
 
 source "$ZEPHYR_BASE/Kconfig.zephyr"
 
+config FOTA_DEVICE
+	bool "Enable FOTA device settings"
+	default y
+	select FOTA_DEVICE_SOC_SERIES_KINETIS_K6X if SOC_SERIES_KINETIS_K6X
+	select FOTA_DEVICE_SOC_SERIES_NRF52X if SOC_SERIES_NRF52X
+	select FOTA_DEVICE_SOC_SERIES_STM32F4X if SOC_SERIES_STM32F4X
+	help
+	  Main config to enable device specific settings
+
+config FOTA_DEVICE_SOC_SERIES_KINETIS_K6X
+	bool "Kinetis K6x FOTA settings"
+	select NET_L2_ETHERNET
+	select NET_SHELL
+	select NET_IPV4
+	select NET_UDP
+	select NET_SAMPLES_IP_ADDRESSES
+	default n
+
+config FOTA_DEVICE_SOC_SERIES_NRF52X
+	bool "Nordic Semiconductor nRF52 FOTA settings"
+	select NET_L2_BLUETOOTH
+	select NET_L2_BLUETOOTH_ZEP1656
+	select NET_IPV6
+	select SENSOR
+	select TEMP_NRF5
+	select TEST_RANDOM_GENERATOR
+	default n
+
+config FOTA_DEVICE_SOC_SERIES_STM32F4X
+	bool "STM32F4x FOTA settings"
+	select NET_L2_BLUETOOTH
+	select NET_L2_BLUETOOTH_ZEP1656
+	select NET_IPV6
+	select SENSOR
+	select TEMP_STM32F401X
+	select TEST_RANDOM_GENERATOR
+	default n
+
 config FOTA_BLUEMIX_ORG
 	string "Bluemix organization code"
 	default "mstsez"
@@ -51,3 +89,5 @@ config FOTA_DM_BACKEND_BLUEMIX
 	  IBM Bluemix IoT platform allows you to securely connect, control and
 	  manage devices.
 endchoice
+
+source "$APPLICATION_BASE/Kconfig.defconfig.*"
