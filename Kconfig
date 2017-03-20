@@ -15,6 +15,13 @@ config APPLICATION_BASE
 
 source "$ZEPHYR_BASE/Kconfig.zephyr"
 
+config FOTA_BLUEMIX_ORG
+	string "Bluemix organization code"
+	default "mstsez"
+	help
+	  Enter IBM Bluemix organization code for MQTT publish / subscribe
+	  requests
+
 config FOTA_SHELL
 	bool "FOTA shell console"
 	depends on CONSOLE_SHELL

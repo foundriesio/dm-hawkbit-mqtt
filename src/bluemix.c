@@ -260,7 +260,8 @@ int bluemix_init(struct bluemix_ctx *ctx)
 	snprintf(ctx->bm_id, sizeof(ctx->bm_id), "%s-%08x",
 		 CONFIG_BLUEMIX_DEVICE_TYPE, product_id.number);
 	snprintf(ctx->client_id, sizeof(ctx->client_id),
-		"d:%s:%s:%s", CONFIG_BLUEMIX_ORG, CONFIG_BLUEMIX_DEVICE_TYPE,
+		"d:%s:%s:%s", CONFIG_FOTA_BLUEMIX_ORG,
+		CONFIG_BLUEMIX_DEVICE_TYPE,
 		ctx->bm_id);
 	snprintf(ctx->bm_auth_token, sizeof(ctx->bm_auth_token),
 		 "%08x", product_id.number);

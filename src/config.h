@@ -7,6 +7,4 @@
 #ifndef __FOTA_CONFIG_H_
 #define __FOTA_CONFIG_H_
 
-#define CONFIG_BLUEMIX_ORG		"mstsez"
-
 #endif /* __FOTA_CONFIG_H_ */
