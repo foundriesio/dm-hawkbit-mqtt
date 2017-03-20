@@ -7,7 +7,6 @@
 #ifndef	__FOTA_BLUEMIX_H__
 #define	__FOTA_BLUEMIX_H__
 
-#include "config.h"
 #include <net/mqtt.h>
 #include <kernel.h>
 

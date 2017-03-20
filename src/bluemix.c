@@ -9,8 +9,6 @@
  * samples/net/mqtt_publisher
  */
 
-#include "config.h"
-
 #include <zephyr.h>
 
 #include <net/net_context.h>

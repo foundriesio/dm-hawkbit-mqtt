@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "config.h"
-
 #include <bluetooth/conn.h>
 #include <misc/stack.h>
 #include <gpio.h>
