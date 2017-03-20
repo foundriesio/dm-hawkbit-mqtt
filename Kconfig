@@ -15,6 +15,13 @@ config APPLICATION_BASE
 
 source "$ZEPHYR_BASE/Kconfig.zephyr"
 
+config FOTA_SHELL
+	bool "FOTA shell console"
+	depends on CONSOLE_SHELL
+	default y
+	help
+	  The option adds a new "fota" command to the console shell.
+
 choice
 	prompt "Select IoT device management system"
 	default FOTA_DM_BACKEND_HAWKBIT
