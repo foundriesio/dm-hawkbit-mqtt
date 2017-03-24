@@ -179,6 +179,8 @@ static void fota_service(void)
 			/* restart the failed attempt counter */
 			hawkbit_failures = 0;
 		}
+#else
+		OTA_ERR("Unsupported device management backend\n");
 #endif /* CONFIG_FOTA_DM_BACKEND_HAWKBIT */
 
 		tcp_interface_unlock();
