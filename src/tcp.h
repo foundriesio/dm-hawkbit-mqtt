@@ -14,7 +14,9 @@
 #define TCP_RECV_BUF_SIZE 2048
 
 enum tcp_context_id {
-	TCP_CTX_HAWKBIT = 0,
+#if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
+	TCP_CTX_HAWKBIT,
+#endif
 	TCP_CTX_BLUEMIX,
 	TCP_CTX_MAX
 };

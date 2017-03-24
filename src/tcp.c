@@ -78,7 +78,7 @@ static struct k_sem interface_lock;
 
 static inline int invalid_id(enum tcp_context_id id)
 {
-	return id < TCP_CTX_HAWKBIT || id >= TCP_CTX_MAX;
+	return id < 0 || id >= TCP_CTX_MAX;
 }
 
 static void tcp_cleanup_context(struct tcp_context *ctx, bool put_net_context)
@@ -210,7 +210,9 @@ int tcp_init(void)
 		k_sem_init(&contexts[i].sem_recv_wait, 0, 1);
 		k_sem_init(&contexts[i].sem_recv_mutex, 1, 1);
 	}
+#if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
 	contexts[TCP_CTX_HAWKBIT].peer_port = HAWKBIT_PORT;
+#endif
 	contexts[TCP_CTX_BLUEMIX].peer_port = BLUEMIX_PORT;
 
 	k_sem_init(&interface_lock, 1, 1);
