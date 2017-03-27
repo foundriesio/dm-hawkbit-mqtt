@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <errno.h>
 #include <zephyr.h>
+#include <toolchain.h>
 
 #include <net/net_core.h>
 #include <net/net_context.h>
@@ -22,6 +23,25 @@
 #define SERVER_CONNECT_TIMEOUT		K_SECONDS(5)
 #define SERVER_CONNECT_MAX_WAIT_COUNT	2
 #define TCP_TX_TIMEOUT			K_MSEC(500)
+
+/*
+ * If we're depending on net samples IP address config options, we
+ * need to make sure they are set. That's the purpose of these
+ * build-time asserts that their lengths are longer than 1 (a null
+ * character, the default Kconfig string value).
+ *
+ * Users can specify these values for their local environment using
+ * local.conf or boards/$(BOARD)-local.conf, which aren't tracked in
+ * Git.
+ */
+#if defined(CONFIG_NET_IPV4)
+#if !defined(CONFIG_NET_DHCPV4)
+BUILD_ASSERT_MSG(sizeof(CONFIG_NET_SAMPLES_MY_IPV4_ADDR) > 1,
+		 "DHCPv4 must be enabled, or CONFIG_NET_SAMPLES_MY_IPV4_ADDR must be defined, in boards/$(BOARD)-local.conf");
+#endif
+BUILD_ASSERT_MSG(sizeof(CONFIG_NET_SAMPLES_PEER_IPV4_ADDR) > 1,
+		 "CONFIG_NET_SAMPLES_PEER_IPV4_ADDR must be defined in boards/$(BOARD)-local.conf");
+#endif
 
 /* Network Config */
 #if defined(CONFIG_NET_IPV6)
