@@ -89,5 +89,3 @@ config FOTA_DM_BACKEND_BLUEMIX
 	  IBM Bluemix IoT platform allows you to securely connect, control and
 	  manage devices.
 endchoice
-
-source "$APPLICATION_BASE/Kconfig.defconfig.*"
