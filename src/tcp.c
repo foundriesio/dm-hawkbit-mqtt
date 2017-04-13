@@ -36,11 +36,11 @@
  */
 #if defined(CONFIG_NET_IPV4)
 #if !defined(CONFIG_NET_DHCPV4)
-BUILD_ASSERT_MSG(sizeof(CONFIG_NET_SAMPLES_MY_IPV4_ADDR) > 1,
-		 "DHCPv4 must be enabled, or CONFIG_NET_SAMPLES_MY_IPV4_ADDR must be defined, in boards/$(BOARD)-local.conf");
+BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_MY_IPV4_ADDR) > 1,
+		 "DHCPv4 must be enabled, or CONFIG_NET_APP_MY_IPV4_ADDR must be defined, in boards/$(BOARD)-local.conf");
 #endif
-BUILD_ASSERT_MSG(sizeof(CONFIG_NET_SAMPLES_PEER_IPV4_ADDR) > 1,
-		 "CONFIG_NET_SAMPLES_PEER_IPV4_ADDR must be defined in boards/$(BOARD)-local.conf");
+BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_PEER_IPV4_ADDR) > 1,
+		 "CONFIG_NET_APP_PEER_IPV4_ADDR must be defined in boards/$(BOARD)-local.conf");
 #endif
 
 /* Network Config */
@@ -51,8 +51,8 @@ BUILD_ASSERT_MSG(sizeof(CONFIG_NET_SAMPLES_PEER_IPV4_ADDR) > 1,
 #define NET_SIN_PORT(s)		net_sin6(s)->sin6_port
 #define NET_SIN_SIZE		sizeof(struct sockaddr_in6)
 #define LOCAL_IPADDR		"::"
-#ifdef CONFIG_NET_SAMPLES_PEER_IPV6_ADDR
-#define PEER_IPADDR		CONFIG_NET_SAMPLES_PEER_IPV6_ADDR
+#ifdef CONFIG_NET_APP_PEER_IPV6_ADDR
+#define PEER_IPADDR		CONFIG_NET_APP_PEER_IPV6_ADDR
 #else
 #define PEER_IPADDR		"fe80::d4e7:0:0:1" /* tinyproxy gateway */
 #endif
@@ -62,8 +62,8 @@ BUILD_ASSERT_MSG(sizeof(CONFIG_NET_SAMPLES_PEER_IPV4_ADDR) > 1,
 #define NET_SIN_ADDR(s)		net_sin(s)->sin_addr
 #define NET_SIN_PORT(s)		net_sin(s)->sin_port
 #define NET_SIN_SIZE		sizeof(struct sockaddr_in)
-#define LOCAL_IPADDR		CONFIG_NET_SAMPLES_MY_IPV4_ADDR
-#define PEER_IPADDR		CONFIG_NET_SAMPLES_PEER_IPV4_ADDR
+#define LOCAL_IPADDR		CONFIG_NET_APP_MY_IPV4_ADDR
+#define PEER_IPADDR		CONFIG_NET_APP_PEER_IPV4_ADDR
 #endif
 
 #if defined(CONFIG_NET_CONTEXT_NBUF_POOL)
