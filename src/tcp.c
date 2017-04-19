@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#define SYS_LOG_DOMAIN "fota/tcp"
+#define SYS_LOG_LEVEL CONFIG_SYS_LOG_FOTA_LEVEL
+#include <logging/sys_log.h>
+
 #include <stdint.h>
 #include <stddef.h>
 #include <errno.h>
@@ -15,7 +19,6 @@
 #include <net/nbuf.h>
 #include <net/net_if.h>
 
-#include "ota_debug.h"
 #include "tcp.h"
 #include "hawkbit.h"
 #include "bluemix.h"
@@ -129,7 +132,7 @@ static void tcp_received_cb(struct net_context *context,
 
 	/* handle FIN packet */
 	if (!buf) {
-		OTA_DBG("FIN received, closing network context\n");
+		SYS_LOG_DBG("FIN received, closing network context");
 		/* clear out our reference to the network connection */
 		tcp_cleanup_context(ctx, false);
 		k_sem_give(&ctx->sem_recv_wait);
@@ -142,9 +145,10 @@ static void tcp_received_cb(struct net_context *context,
 		 * the nbuf for later processing
 		 */
 		if (ctx->read_bytes + net_nbuf_appdatalen(buf) >= TCP_RECV_BUF_SIZE) {
-			OTA_ERR("ERROR buffer overflow! (read(%u)+bufflen(%u) >= %u)\n",
-				ctx->read_bytes, net_nbuf_appdatalen(buf),
-				TCP_RECV_BUF_SIZE);
+			SYS_LOG_ERR("ERROR buffer overflow!"
+				    " (read(%u)+bufflen(%u) >= %u)",
+				    ctx->read_bytes, net_nbuf_appdatalen(buf),
+				    TCP_RECV_BUF_SIZE);
 			net_nbuf_unref(buf);
 			tcp_cleanup_context(ctx, true);
 			k_sem_give(&ctx->sem_recv_wait);
@@ -178,7 +182,7 @@ int tcp_init(void)
 
 	iface = net_if_get_default();
 	if (!iface) {
-		printk("Cannot find default network interface!\n");
+		SYS_LOG_ERR("Cannot find default network interface!");
 		return -ENETDOWN;
 	}
 
@@ -199,20 +203,20 @@ int tcp_init(void)
 
 	/* Add delays so DHCP can assign IP */
 	/* TODO: add a timeout/retry */
-	OTA_INFO("Waiting for DHCP ");
+	SYS_LOG_INF("Waiting for DHCP ");
 	do {
-		OTA_INFO(".");
+		SYS_LOG_INF(".");
 		k_sleep(K_SECONDS(1));
 	} while (net_is_ipv4_addr_unspecified(&iface->dhcpv4.requested_ip));
-	OTA_INFO(" Done!\n");
+	SYS_LOG_INF(" Done!");
 
 	/* TODO: add a timeout */
-	OTA_INFO("Waiting for IP assignment ");
+	SYS_LOG_INF("Waiting for IP assignment ");
 	do {
-		OTA_INFO(".");
+		SYS_LOG_INF(".");
 		k_sleep(K_SECONDS(1));
 	} while (!net_is_my_ipv4_addr(&iface->dhcpv4.requested_ip));
-	OTA_INFO(" Done!\n");
+	SYS_LOG_INF(" Done!");
 
 	net_ipaddr_copy(&NET_SIN_ADDR(&client_addr),
 			&iface->dhcpv4.requested_ip);
@@ -261,8 +265,8 @@ static int tcp_connect_context(struct tcp_context *ctx)
 		rc = net_context_get(FOTA_AF_INET, SOCK_STREAM,
 				     IPPROTO_TCP, &ctx->net_ctx);
 		if (rc < 0) {
-			OTA_ERR("Cannot get network context for TCP (%d)\n",
-				rc);
+			SYS_LOG_ERR("Cannot get network context for TCP (%d)",
+				    rc);
 			tcp_cleanup_context(ctx, true);
 			return -EIO;
 		}
@@ -283,14 +287,14 @@ static int tcp_connect_context(struct tcp_context *ctx)
 
 		rc = net_context_bind(ctx->net_ctx, &my_addr, NET_SIN_SIZE);
 		if (rc < 0) {
-			OTA_ERR("Cannot bind IP addr (%d)\n", rc);
+			SYS_LOG_ERR("Cannot bind IP addr (%d)", rc);
 			tcp_cleanup_context(ctx, true);
 			return -EINVAL;
 		}
 	}
 
 	if (!ctx->net_ctx) {
-		OTA_ERR("ERROR: No TCP network context!\n");
+		SYS_LOG_ERR("ERROR: No TCP network context!");
 		return -EIO;
 	}
 
@@ -308,12 +312,13 @@ static int tcp_connect_context(struct tcp_context *ctx)
 	rc = net_context_connect(ctx->net_ctx, &dst_addr, NET_SIN_SIZE,
 				 NULL, SERVER_CONNECT_TIMEOUT, NULL);
 	if (rc < 0) {
-		char buf[NET_IPV6_ADDR_LEN];
+		__unused char buf[NET_IPV6_ADDR_LEN];
 
-		OTA_ERR("Cannot connect to server: %s:%d (%d)\n",
-			net_addr_ntop(FOTA_AF_INET, &NET_SIN_ADDR(&dst_addr),
-				buf, sizeof(buf)),
-			ctx->peer_port, rc);
+		SYS_LOG_ERR("Cannot connect to server: %s:%d (%d)",
+			    net_addr_ntop(FOTA_AF_INET,
+					  &NET_SIN_ADDR(&dst_addr),
+					  buf, sizeof(buf)),
+			    ctx->peer_port, rc);
 		tcp_cleanup_context(ctx, true);
 		return -EIO;
 	}
@@ -341,13 +346,13 @@ static int tcp_send_context(struct tcp_context *ctx, const unsigned char *buf,
 
 	send_buf = net_nbuf_get_tx(ctx->net_ctx, K_FOREVER);
 	if (!send_buf) {
-		OTA_ERR("cannot create buf\n");
+		SYS_LOG_ERR("cannot create buf");
 		return -EIO;
 	}
 
 	rc = net_nbuf_append(send_buf, size, (uint8_t *) buf, K_FOREVER);
 	if (!rc) {
-		OTA_ERR("cannot write buf\n");
+		SYS_LOG_ERR("cannot write buf");
 		net_nbuf_unref(send_buf);
 		return -EIO;
 	}
@@ -356,7 +361,7 @@ static int tcp_send_context(struct tcp_context *ctx, const unsigned char *buf,
 
 	rc = net_context_send(send_buf, NULL, TCP_TX_TIMEOUT, NULL, NULL);
 	if (rc < 0) {
-		OTA_ERR("Cannot send data to peer (%d)\n", rc);
+		SYS_LOG_ERR("Cannot send data to peer (%d)", rc);
 		net_nbuf_unref(send_buf);
 
 		if (rc == -ESHUTDOWN)
@@ -390,7 +395,7 @@ static int tcp_recv_context(struct tcp_context *ctx, unsigned char *buf,
 	/* wait here for the connection to complete or timeout */
 	rc = k_sem_take(&ctx->sem_recv_wait, timeout);
 	if (rc < 0 && rc != -ETIMEDOUT) {
-		OTA_ERR("recv_wait sem error = %d\n", rc);
+		SYS_LOG_ERR("recv_wait sem error = %d", rc);
 		return rc;
 	}
 
