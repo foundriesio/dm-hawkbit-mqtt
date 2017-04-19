@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifndef __FOTA_BOOT_UTILS_H__
+#define __FOTA_BOOT_UTILS_H__
+
 typedef enum {
 	BOOT_ACID_CURRENT = 0,
 	BOOT_ACID_UPDATE,
@@ -27,3 +30,5 @@ void boot_acid_read(struct boot_acid *boot_acid);
 int boot_acid_update(boot_acid_t type, uint32_t acid);
 
 int boot_erase_flash_bank(uint32_t bank_offset);
+
+#endif	/* __FOTA_BOOT_UTILS_H__ */

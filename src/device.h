@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifndef __FOTA_DEVICE_H__
+#define __FOTA_DEVICE_H__
+
 #include <board.h>
 
 /* Flash specific configs */
@@ -90,3 +93,5 @@ extern struct device *flash_dev;
 
 void set_device_id(void);
 void set_bluetooth_led(bool state);
+
+#endif	/* __FOTA_DEVICE_H__ */
