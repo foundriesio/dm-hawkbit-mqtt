@@ -28,7 +28,7 @@
 #include "jsmn.h"
 #include "hawkbit.h"
 #include "tcp.h"
-#include "boot_utils.h"
+#include "mcuboot.h"
 #include "device.h"
 #include "flash_block.h"
 

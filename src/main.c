@@ -19,7 +19,7 @@
 #include "tstamp_log.h"
 #include "bt_storage.h"
 #include "bt_ipss.h"
-#include "boot_utils.h"
+#include "mcuboot.h"
 #if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
 #include "hawkbit.h"
 #endif
@@ -113,13 +113,6 @@ static int fota_init(void)
 	int ret;
 
 	TC_PRINT("Initializing FOTA backend\n");
-
-	flash_dev = device_get_binding(FLASH_DRIVER_NAME);
-	if (!flash_dev) {
-		SYS_LOG_ERR("Failed to find the flash driver");
-		TC_END_RESULT(TC_FAIL);
-		return -ENODEV;
-	}
 
 	/* Update boot status and acid */
 	boot_acid_read(&acid);

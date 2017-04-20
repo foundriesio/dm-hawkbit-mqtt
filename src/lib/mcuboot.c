@@ -4,13 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#define SYS_LOG_DOMAIN "fota/mcuboot"
+#define SYS_LOG_LEVEL CONFIG_SYS_LOG_FOTA_LEVEL
+#include <logging/sys_log.h>
+
 #include <stddef.h>
 #include <errno.h>
 #include <string.h>
 #include <flash.h>
 #include <zephyr.h>
+#include <init.h>
 
-#include "boot_utils.h"
+#include "mcuboot.h"
 #include "device.h"
 
 /*
@@ -72,8 +77,10 @@ uint8_t boot_status_read(void)
 void boot_status_update(void)
 {
 	uint32_t offset;
-	/* The first byte of the Image OK area contains payload. The
-	 * rest is padded with 0xff for flash write alignment. */
+	/*
+	 * The first byte of the Image OK area contains payload. The
+	 * rest is padded with 0xff for flash write alignment.
+	 */
 	uint8_t img_ok;
 	uint8_t update_buf[TRAILER_IMAGE_OK_SIZE];
 
@@ -159,3 +166,16 @@ int boot_erase_flash_bank(uint32_t bank_offset)
 
 	return ret;
 }
+
+static int boot_init(struct device *dev)
+{
+	ARG_UNUSED(dev);
+	flash_dev = device_get_binding(FLASH_DRIVER_NAME);
+	if (!flash_dev) {
+		SYS_LOG_ERR("Failed to find the flash driver");
+		return -ENODEV;
+	}
+	return 0;
+}
+
+SYS_INIT(boot_init, APPLICATION, 99);

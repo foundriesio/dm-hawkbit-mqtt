@@ -11,7 +11,7 @@
 #include <shell/shell.h>
 #include <zephyr.h>
 
-#include "boot_utils.h"
+#include "mcuboot.h"
 
 #define THIS_SHELL_MODULE "fota"
 
