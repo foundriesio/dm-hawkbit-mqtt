@@ -9,6 +9,10 @@
  * samples/net/mqtt_publisher
  */
 
+#define SYS_LOG_DOMAIN "fota/bluemix"
+#define SYS_LOG_LEVEL CONFIG_SYS_LOG_FOTA_LEVEL
+#include <logging/sys_log.h>
+
 #include <zephyr.h>
 
 #include <net/net_context.h>
@@ -19,7 +23,6 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include "ota_debug.h"
 #include "device.h"
 #include "tcp.h"
 #include "bluemix.h"
@@ -79,15 +82,15 @@ static int publish_rx_cb(struct mqtt_ctx *ctx, struct mqtt_publish_msg *msg,
 
 	if (msg->topic_len + 1 > sizeof(bm_ctx->bm_topic)) {
 		bm_ctx->bm_fatal_err = -ENOMEM;
-		OTA_ERR("Bluemix topic buffer size %u overflowed by %u B\n",
-			sizeof(bm_ctx->bm_topic),
-			msg->topic_len + 1 - sizeof(bm_ctx->bm_topic));
+		SYS_LOG_ERR("Bluemix topic buffer size %u overflowed by %u B",
+			    sizeof(bm_ctx->bm_topic),
+			    msg->topic_len + 1 - sizeof(bm_ctx->bm_topic));
 
 	} else if (msg->msg_len + 1 > sizeof(bm_ctx->bm_message)) {
 		bm_ctx->bm_fatal_err = -ENOMEM;
-		OTA_ERR("Bluemix message buffer size %u overflowed by %u B\n",
-			sizeof(bm_ctx->bm_message),
-			msg->msg_len + 1 - sizeof(bm_ctx->bm_message));
+		SYS_LOG_ERR("Bluemix message buffer size %u overflowed by %u B",
+			    sizeof(bm_ctx->bm_message),
+			    msg->msg_len + 1 - sizeof(bm_ctx->bm_message));
 	}
 	if (bm_ctx->bm_fatal_err) {
 		/* Propagate fatal error to waiter. */
@@ -102,8 +105,8 @@ static int publish_rx_cb(struct mqtt_ctx *ctx, struct mqtt_publish_msg *msg,
 	k_sem_give(&bm_ctx->reply_sem);
 
 	/* FIXME: parse JSON and validate any pending reqId. */
-	OTA_DBG("topic: %s\n", bm_ctx->bm_topic);
-	OTA_DBG("msg: %s\n", bm_ctx->bm_message);
+	SYS_LOG_DBG("topic: %s", bm_ctx->bm_topic);
+	SYS_LOG_DBG("msg: %s", bm_ctx->bm_message);
 	return 0;
 }
 
@@ -117,13 +120,13 @@ static int subscribe_cb(struct mqtt_ctx *ctx, uint16_t pkt_id,
 
 static int unsubscribe_cb(struct mqtt_ctx *ctx, uint16_t pkt_id)
 {
-	OTA_DBG("MQTT unsubscribe CB\n");
+	SYS_LOG_DBG("MQTT unsubscribe CB");
 	return 0;
 }
 
 static void malformed_cb(struct mqtt_ctx *ctx, uint16_t pkt_type)
 {
-	OTA_DBG("MQTT malformed CB\n");
+	SYS_LOG_DBG("MQTT malformed CB");
 }
 
 /* In this routine we block until the connected variable is 1 */
@@ -136,7 +139,7 @@ static int try_to_connect(struct mqtt_ctx *ctx, struct mqtt_connect_msg *msg)
 		ret = mqtt_tx_connect(ctx, msg);
 		k_sleep(APP_SLEEP_MSECS);
 		if (ret) {
-			OTA_ERR("mqtt_tx_connect: %d\n", ret);
+			SYS_LOG_ERR("mqtt_tx_connect: %d", ret);
 			continue;
 		}
 	}
@@ -161,7 +164,7 @@ static int subscribe_to_topic(struct bluemix_ctx *ctx)
 	ret = mqtt_tx_subscribe(&ctx->mqtt_ctx, sys_rand32_get() & 0xffff,
 				1, topics, qos0);
 	if (ret) {
-		OTA_ERR("mqtt_tx_subscribe: %d\n", ret);
+		SYS_LOG_ERR("mqtt_tx_subscribe: %d", ret);
 		return ret;
 	}
 	ret = wait_for_mqtt(ctx, MQTT_SUBSCRIBE_WAIT);
@@ -170,8 +173,8 @@ static int subscribe_to_topic(struct bluemix_ctx *ctx)
 
 static int publish_message(struct bluemix_ctx *ctx)
 {
-	OTA_DBG("topic:%s\n", ctx->pub_msg.topic);
-	OTA_DBG("message:%s\n", ctx->pub_msg.msg);
+	SYS_LOG_DBG("topic:%s", ctx->pub_msg.topic);
+	SYS_LOG_DBG("message:%s", ctx->pub_msg.msg);
 	return mqtt_tx_publish(&ctx->mqtt_ctx, &ctx->pub_msg);
 }
 
@@ -220,11 +223,11 @@ static void build_manage_request(struct bluemix_ctx *ctx)
 static int become_managed_device(struct bluemix_ctx *ctx)
 {
 	int ret;
-	OTA_DBG("becoming a managed device\n");
+	SYS_LOG_DBG("becoming a managed device");
 	INIT_DEVICE_TOPIC(ctx, "iotdm-1/type/%s/id/%s/#");
 	ret = subscribe_to_topic(ctx);
 	if (ret) {
-		OTA_ERR("can't subscribe to device management topics: %d\n",
+		SYS_LOG_ERR("can't subscribe to device management topics: %d",
 			ret);
 		return ret;
 	}
@@ -235,13 +238,13 @@ static int become_managed_device(struct bluemix_ctx *ctx)
 	}
 	ret = wait_for_mqtt(ctx, BLUEMIX_MGMT_WAIT);
 	if (ret == -EAGAIN) {
-		OTA_ERR("timed out\n");
+		SYS_LOG_ERR("timed out");
 		return ret;
 	} else if (ctx->bm_fatal_err) {
-		OTA_DBG("fatal error %d", ctx->bm_fatal_err);
+		SYS_LOG_ERR("fatal error %d", ctx->bm_fatal_err);
 		return ctx->bm_fatal_err;
 	}
-	OTA_DBG("wait_for_mqtt: %d\n", ret);
+	SYS_LOG_DBG("wait_for_mqtt: %d", ret);
 	return ret;
 }
 #endif	/* CONFIG_FOTA_DM_BACKEND_BLUEMIX */
@@ -332,7 +335,7 @@ int bluemix_init(struct bluemix_ctx *ctx)
 	INIT_DEVICE_TOPIC(ctx, "iot-2/type/%s/id/%s/cmd/+/fmt/+");
 	ret = subscribe_to_topic(ctx);
 	if (ret) {
-		OTA_ERR("can't subscribe to command topics: %d\n", ret);
+		SYS_LOG_ERR("can't subscribe to command topics: %d", ret);
 		goto out;
 	}
 
@@ -355,7 +358,7 @@ int bluemix_fini(struct bluemix_ctx *ctx)
 
 	ret = mqtt_tx_disconnect(&ctx->mqtt_ctx);
 	if (ret) {
-		OTA_ERR("%s: mqtt_tx_disconnect: %d\n", __func__, ret);
+		SYS_LOG_ERR("%s: mqtt_tx_disconnect: %d", __func__, ret);
 		goto cleanup;
 	}
 	ret = wait_for_mqtt(ctx, MQTT_DISCONNECT_WAIT);
