@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#define SYS_LOG_DOMAIN "fota/main"
+#define SYS_LOG_LEVEL SYS_LOG_LEVEL_DEBUG
+#include <logging/sys_log.h>
+
 #include <bluetooth/conn.h>
 #include <misc/stack.h>
 #include <gpio.h>
@@ -14,7 +18,6 @@
 /* Local helpers and functions */
 #include "bt_storage.h"
 #include "bt_ipss.h"
-#include "ota_debug.h"
 #include "boot_utils.h"
 #if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
 #include "hawkbit.h"
@@ -93,10 +96,10 @@ static int fota_update_acid(struct boot_acid *acid)
 		ret = boot_acid_update(BOOT_ACID_CURRENT, acid->update);
 		if (!ret) {
 			boot_acid_read(acid);
-			OTA_INFO("ACID updated, current %d, update %d\n",
-				 acid->current, acid->update);
+			SYS_LOG_INF("ACID updated, current %d, update %d",
+				    acid->current, acid->update);
 		} else {
-			OTA_ERR("Failed to update ACID: %d\n", ret);
+			SYS_LOG_ERR("Failed to update ACID: %d", ret);
 		}
 	}
 	return ret;
@@ -112,28 +115,29 @@ static int fota_init(void)
 
 	flash_dev = device_get_binding(FLASH_DRIVER_NAME);
 	if (!flash_dev) {
-		OTA_ERR("Failed to find the flash driver\n");
+		SYS_LOG_ERR("Failed to find the flash driver");
 		TC_END_RESULT(TC_FAIL);
 		return -ENODEV;
 	}
 
 	/* Update boot status and acid */
 	boot_acid_read(&acid);
-	OTA_INFO("ACID: current %d, update %d\n",
+	SYS_LOG_INF("ACID: current %d, update %d",
 		 acid.current, acid.update);
 	boot_status = boot_status_read();
-	OTA_INFO("Current boot status %x\n", boot_status);
+	SYS_LOG_INF("Current boot status %x", boot_status);
 	if (boot_status == BOOT_STATUS_ONGOING) {
 		boot_status_update();
-		OTA_INFO("Updated boot status to %x\n", boot_status_read());
+		SYS_LOG_INF("Updated boot status to %x", boot_status_read());
 		ret = boot_erase_flash_bank(FLASH_BANK1_OFFSET);
 		if (ret) {
-			OTA_ERR("flash_erase error %d\n", ret);
+			SYS_LOG_ERR("flash_erase error %d", ret);
 			TC_END_RESULT(TC_FAIL);
 			return ret;
 		} else {
-			OTA_DBG("Flash bank (offset %x) erased successfully\n",
-				FLASH_BANK1_OFFSET);
+			SYS_LOG_DBG("Flash bank (offset %x) erased"
+				    " successfully",
+				    FLASH_BANK1_OFFSET);
 		}
 		ret = fota_update_acid(&acid);
 		if (ret) {
@@ -154,13 +158,13 @@ static void fota_service(void)
 	int ret;
 #endif
 
-	OTA_INFO("Starting FOTA Service Thread\n");
+	SYS_LOG_INF("Starting FOTA Service Thread");
 
 	do {
 		k_sleep(poll_sleep);
 #if defined(CONFIG_BLUETOOTH)
 		if (!bt_connection_state) {
-			OTA_DBG("No BT LE connection\n");
+			SYS_LOG_DBG("No BT LE connection");
 			continue;
 		}
 #endif
@@ -171,7 +175,8 @@ static void fota_service(void)
 		ret = hawkbit_ddi_poll();
 		if (ret < 0) {
 			hawkbit_failures++;
-			OTA_DBG("Failed hawkBit attempt %d\n\n\n", hawkbit_failures);
+			SYS_LOG_DBG("Failed hawkBit attempt %d\n\n",
+				    hawkbit_failures);
 			if (hawkbit_failures == MAX_SERVER_FAIL) {
 				printk("Too many unsuccessful poll attempts,"
 						" rebooting!\n");
@@ -182,7 +187,7 @@ static void fota_service(void)
 			hawkbit_failures = 0;
 		}
 #else
-		OTA_ERR("Unsupported device management backend\n");
+		SYS_LOG_ERR("Unsupported device management backend");
 #endif /* CONFIG_FOTA_DM_BACKEND_HAWKBIT */
 
 		tcp_interface_unlock();
@@ -198,11 +203,11 @@ static int temp_init(void)
 	offchip_temp_sensor_dev =
 		device_get_binding(GENERIC_OFFCHIP_TEMP_SENSOR_DEVICE);
 
-	OTA_INFO("%s MCU temperature sensor %s%s\n",
+	SYS_LOG_INF("%s MCU temperature sensor %s%s",
 		 mcu_temp_sensor_dev ? "Found" : "Did not find",
 		 GENERIC_MCU_TEMP_SENSOR_DEVICE,
 		 mcu_temp_sensor_dev ? "" : "\n(Using default values)");
-	OTA_INFO("%s off-chip temperature sensor %s\n",
+	SYS_LOG_INF("%s off-chip temperature sensor %s",
 		 offchip_temp_sensor_dev ? "Found" : "Did not find",
 		 GENERIC_OFFCHIP_TEMP_SENSOR_DEVICE);
 	return 0;
@@ -245,7 +250,7 @@ static void bluemix_service(void)
 		k_sleep(bluemix_sleep);
 #if defined(CONFIG_BLUETOOTH)
 		if (!bt_connection_state) {
-			OTA_DBG("No BT LE connection\n");
+			SYS_LOG_DBG("No BT LE connection");
 			continue;
 		}
 #endif
@@ -260,8 +265,9 @@ static void bluemix_service(void)
 				bluemix_inited = 1;
 			} else {
 				bluemix_failures++;
-				OTA_DBG("Failed Bluemix init - attempt %d\n\n\n",
-					bluemix_failures);
+				SYS_LOG_DBG("Failed Bluemix init -"
+					    " attempt %d\n\n",
+					    bluemix_failures);
 				tcp_interface_unlock();
 				continue;
 			}
@@ -275,21 +281,22 @@ static void bluemix_service(void)
 		ret = get_temp_sensor_data(mcu_temp_sensor_dev,
 					   &mcu_temp_value, true);
 		if (ret) {
-			OTA_ERR("MCU temperature sensor error: %d\n", ret);
+			SYS_LOG_ERR("MCU temperature sensor error: %d", ret);
 		} else {
-			OTA_DBG("Read MCU temp sensor: %d.%dC\n",
-				mcu_temp_value.val1, mcu_temp_value.val2);
+			SYS_LOG_DBG("Read MCU temp sensor: %d.%dC",
+				    mcu_temp_value.val1, mcu_temp_value.val2);
 		}
 
 		ret = get_temp_sensor_data(offchip_temp_sensor_dev,
 					   &offchip_temp_value, false);
 		if (offchip_temp_sensor_dev) {
 			if (ret) {
-				OTA_ERR("Off-chip temperature sensor error: %d\n", ret);
+				SYS_LOG_ERR("Off-chip temperature sensor error:"
+					    " %d", ret);
 			} else {
-				OTA_DBG("Read off-chip temp sensor: %d.%dC\n",
-					offchip_temp_value.val1,
-					offchip_temp_value.val2);
+				SYS_LOG_DBG("Read off-chip temp sensor: %d.%dC",
+					    offchip_temp_value.val1,
+					    offchip_temp_value.val2);
 			}
 		}
 
@@ -316,7 +323,7 @@ static void bluemix_service(void)
 		}
 
 		if (ret) {
-			OTA_ERR("bluemix_pub_status_json: %d\n", ret);
+			SYS_LOG_ERR("bluemix_pub_status_json: %d", ret);
 			bluemix_failures++;
 		} else {
 			bluemix_failures = 0;
@@ -325,7 +332,7 @@ static void bluemix_service(void)
 		/* Either way, shut it down. */
 		if (ret) {
 			ret = bluemix_fini(&bluemix_context);
-			OTA_ERR("bluemix_fini: %d\n", ret);
+			SYS_LOG_ERR("bluemix_fini: %d", ret);
 		}
 
 		tcp_interface_unlock();
