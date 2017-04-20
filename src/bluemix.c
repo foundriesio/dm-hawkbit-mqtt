@@ -178,77 +178,6 @@ static int publish_message(struct bluemix_ctx *ctx)
 	return mqtt_tx_publish(&ctx->mqtt_ctx, &ctx->pub_msg);
 }
 
-#if defined(CONFIG_FOTA_DM_BACKEND_BLUEMIX)
-static void build_req_uuid(struct bluemix_ctx *ctx) /* TODO: improve this. */
-{
-	snprintf(ctx->bm_req_id, sizeof(ctx->bm_req_id),
-		 "%08x-401c-453c-b8f5-%012x",
-		 product_id.number, ctx->bm_next_req_id++);
-}
-
-static void build_manage_request(struct bluemix_ctx *ctx)
-{
-	struct mqtt_publish_msg *pub_msg = &ctx->pub_msg;
-	uint8_t *buffer = ctx->bm_message;
-	size_t size = sizeof(ctx->bm_message);
-	char *helper;
-
-	memset(buffer, 0, size);
-	helper = buffer;
-
-	INIT_DEVICE_TOPIC(ctx, "iotdevice-1/type/%s/id/%s/mgmt/manage");
-	build_req_uuid(ctx);
-	snprintf(helper, size,
-	"{"
-		"\"d\":{"
-			"\"supports\":{"
-			    "\"deviceActions\":true,"
-			    "\"firmwareActions\":true"
-			"},"
-			"\"deviceInfo\":{"
-			    "\"serialNumber\":\"%08x\","
-			    "\"fwVersion\":\"1.0\""
-			"}"
-		"},"
-		"\"reqId\":\"%s\""
-		 "}", product_id.number, ctx->bm_req_id);
-
-	pub_msg->msg = buffer;
-	pub_msg->msg_len = strlen(pub_msg->msg);
-	pub_msg->qos = MQTT_QoS0;
-	pub_msg->topic = ctx->bm_topic;
-	pub_msg->topic_len = strlen(pub_msg->topic);
-}
-
-static int become_managed_device(struct bluemix_ctx *ctx)
-{
-	int ret;
-	SYS_LOG_DBG("becoming a managed device");
-	INIT_DEVICE_TOPIC(ctx, "iotdm-1/type/%s/id/%s/#");
-	ret = subscribe_to_topic(ctx);
-	if (ret) {
-		SYS_LOG_ERR("can't subscribe to device management topics: %d",
-			ret);
-		return ret;
-	}
-	build_manage_request(ctx);
-	ret = publish_message(ctx);
-	if (ret) {
-		return ret;
-	}
-	ret = wait_for_mqtt(ctx, BLUEMIX_MGMT_WAIT);
-	if (ret == -EAGAIN) {
-		SYS_LOG_ERR("timed out");
-		return ret;
-	} else if (ctx->bm_fatal_err) {
-		SYS_LOG_ERR("fatal error %d", ctx->bm_fatal_err);
-		return ctx->bm_fatal_err;
-	}
-	SYS_LOG_DBG("wait_for_mqtt: %d", ret);
-	return ret;
-}
-#endif	/* CONFIG_FOTA_DM_BACKEND_BLUEMIX */
-
 int bluemix_init(struct bluemix_ctx *ctx)
 {
 	int ret = 0;
@@ -338,13 +267,6 @@ int bluemix_init(struct bluemix_ctx *ctx)
 		SYS_LOG_ERR("can't subscribe to command topics: %d", ret);
 		goto out;
 	}
-
-#if defined(CONFIG_FOTA_DM_BACKEND_BLUEMIX)
-	ret = become_managed_device(ctx);
-	if (ret) {
-		goto out;
-	}
-#endif /* CONFIG_FOTA_DM_BACKEND_BLUEMIX */
 
 	return 0;
  out:

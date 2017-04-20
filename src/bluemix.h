@@ -11,10 +11,6 @@
 #include <kernel.h>
 #include <toolchain.h>
 
-#ifdef CONFIG_FOTA_DM_BACKEND_BLUEMIX
-#include "bluemix_dm.h"
-#endif
-
 #define BLUEMIX_PORT	1883
 
 #define APP_CONNECT_TRIES	10
