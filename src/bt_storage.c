@@ -4,10 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#define SYS_LOG_DOMAIN "fota/bt_storage"
+#define SYS_LOG_LEVEL SYS_LOG_LEVEL_DEBUG
+#include <logging/sys_log.h>
+
 #include <stdint.h>
 #include <stddef.h>
 #include <errno.h>
-#include <misc/printk.h>
 #include <zephyr.h>
 
 #include <bluetooth/bluetooth.h>
@@ -80,7 +83,7 @@ int bt_storage_init(void)
 
 	bt_storage_register(&storage);
 
-	printk("Bluetooth storage driver registered\n");
+	SYS_LOG_DBG("Bluetooth storage driver registered");
 
 	TC_END_RESULT(TC_PASS);
 
