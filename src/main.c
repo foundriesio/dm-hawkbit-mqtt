@@ -16,6 +16,7 @@
 #include <misc/reboot.h>
 
 /* Local helpers and functions */
+#include "tstamp_log.h"
 #include "bt_storage.h"
 #include "bt_ipss.h"
 #include "boot_utils.h"
@@ -369,6 +370,7 @@ void main(void)
 	int err;
 
 	set_device_id();
+	tstamp_hook_install();
 
 	SYS_LOG_INF("Linaro FOTA example application");
 	SYS_LOG_INF("Device: %s, Serial: %x",

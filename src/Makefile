@@ -6,3 +6,4 @@ obj-y += bluemix.o
 obj-$(CONFIG_FOTA_DM_BACKEND_HAWKBIT) += hawkbit.o
 obj-$(CONFIG_BLUETOOTH) += bt_ipss.o bt_storage.o
 obj-$(CONFIG_FOTA_CONSOLE_SHELL) += fota_shell.o
+obj-$(CONFIG_SYS_LOG_EXT_HOOK) += tstamp_log.o
