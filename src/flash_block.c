@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#define SYS_LOG_DOMAIN "fota/flash_block"
+#define SYS_LOG_LEVEL CONFIG_SYS_LOG_FOTA_LEVEL
+#include <logging/sys_log.h>
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -11,7 +15,6 @@
 #include <errno.h>
 #include <flash.h>
 
-#include "ota_debug.h"
 #include "tcp.h"
 
 /*
@@ -42,15 +45,15 @@ static bool flash_block_verify(struct device *dev, off_t offset,
 	memset(tcp_buf, 0x00, TCP_RECV_BUF_SIZE);
 	rc = flash_read(dev, offset, tcp_buf, len);
 	if (rc) {
-		OTA_ERR("flash_read error %d location=0x%08x, len=%d\n",
-			rc, offset, len);
+		SYS_LOG_ERR("flash_read error %d location=0x%08x, len=%d",
+			    rc, offset, len);
 		return false;
 	}
 
 	for (i = 0; i < len; i++) {
 		if (data[i] != tcp_buf[i]) {
-			OTA_ERR("offset=0x%x, index=%d/%d VERIFY FAIL\n",
-				offset, i, len);
+			SYS_LOG_ERR("offset=0x%x, index=%d/%d VERIFY FAIL",
+				    offset, i, len);
 			break;
 		}
 	}
@@ -80,8 +83,8 @@ int flash_block_write(struct device *dev,
 				 flash_buf, BLOCK_BUFFER_SIZE);
 		flash_write_protection_set(dev, true);
 		if (rc) {
-			OTA_ERR("flash_write error %d offset=0x%08x\n",
-				rc, offset + *bytes_written);
+			SYS_LOG_ERR("flash_write error %d offset=0x%08x",
+				    rc, offset + *bytes_written);
 			return rc;
 		}
 
@@ -113,8 +116,8 @@ int flash_block_write(struct device *dev,
 				 flash_buf, BLOCK_BUFFER_SIZE);
 		flash_write_protection_set(dev, true);
 		if (rc) {
-			OTA_ERR("flash_write error %d offset=0x%08x\n",
-				rc, offset + *bytes_written);
+			SYS_LOG_ERR("flash_write error %d offset=0x%08x",
+				    rc, offset + *bytes_written);
 			return rc;
 		}
 
