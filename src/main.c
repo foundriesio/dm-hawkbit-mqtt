@@ -176,8 +176,6 @@ static void fota_service(void)
 		ret = hawkbit_ddi_poll();
 		if (ret < 0) {
 			hawkbit_failures++;
-			SYS_LOG_DBG("Failed hawkBit attempt %d\n\n",
-				    hawkbit_failures);
 			if (hawkbit_failures == MAX_SERVER_FAIL) {
 				SYS_LOG_ERR("Too many unsuccessful poll"
 					    " attempts, rebooting!");
