@@ -49,22 +49,22 @@ static bool bt_connection_state = false;
 static void connected(struct bt_conn *conn, uint8_t err)
 {
 	if (err) {
-		printk("BT LE Connection failed (err %u)\n", err);
+		SYS_LOG_ERR("BT LE Connection failed: %u", err);
 	} else {
-		printk("BT LE Connected\n");
+		SYS_LOG_INF("BT LE Connected");
 		bt_connection_state = true;
 		set_bluetooth_led(1);
 		err = ipss_set_connected();
 		if (err) {
-			printk("BT LE connection name change"
-			       " failed (err %u)\n", err);
+			SYS_LOG_ERR("BT LE connection name change failed: %u",
+				    err);
 		}
 	}
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
-	printk("BT LE Disconnected (reason %u), rebooting!\n", reason);
+	SYS_LOG_ERR("BT LE Disconnected (reason %u), rebooting!", reason);
 	set_bluetooth_led(0);
 	sys_reboot(0);
 }
@@ -178,8 +178,8 @@ static void fota_service(void)
 			SYS_LOG_DBG("Failed hawkBit attempt %d\n\n",
 				    hawkbit_failures);
 			if (hawkbit_failures == MAX_SERVER_FAIL) {
-				printk("Too many unsuccessful poll attempts,"
-						" rebooting!\n");
+				SYS_LOG_ERR("Too many unsuccessful poll"
+					    " attempts, rebooting!");
 				sys_reboot(0);
 			}
 		} else {
@@ -341,7 +341,7 @@ static void bluemix_service(void)
 			      BLUEMIX_STACK_SIZE);
 	}
 
-	printk("Too many bluemix errors, rebooting!\n");
+	SYS_LOG_ERR("Too many bluemix errors, rebooting!");
 	sys_reboot(0);
 }
 
@@ -370,8 +370,9 @@ void main(void)
 
 	set_device_id();
 
-	printk("Linaro FOTA example application\n");
-	printk("Device: %s, Serial: %x\n", product_id.name, product_id.number);
+	SYS_LOG_INF("Linaro FOTA example application");
+	SYS_LOG_INF("Device: %s, Serial: %x",
+		    product_id.name, product_id.number);
 
 	TC_START("Running Built in Self Test (BIST)");
 
@@ -383,7 +384,7 @@ void main(void)
 	TC_PRINT("Enabling Bluetooth\n");
 	err = bt_enable(NULL);
 	if (err) {
-		printk("ERROR: Bluetooth init failed (err %d)\n", err);
+		SYS_LOG_ERR("Bluetooth init failed: %d", err);
 		TC_END_RESULT(TC_FAIL);
 		TC_END_REPORT(TC_FAIL);
 		return;
@@ -399,7 +400,7 @@ void main(void)
 	TC_PRINT("Advertising Bluetooth IP Profile\n");
 	err = ipss_advertise();
 	if (err) {
-		printk("ERROR: Advertising failed to start (err %d)\n", err);
+		SYS_LOG_ERR("Advertising failed to start: %d", err);
 		return;
 	}
 #endif
