@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#define SYS_LOG_DOMAIN "fota/hawkbit"
+#define SYS_LOG_LEVEL CONFIG_SYS_LOG_FOTA_LEVEL
+#include <logging/sys_log.h>
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -21,7 +25,6 @@
 #include <soc.h>
 #include <net/http_parser.h>
 
-#include "ota_debug.h"
 #include "jsmn.h"
 #include "hawkbit.h"
 #include "tcp.h"
@@ -114,29 +117,29 @@ static int json_parser(struct json_data_t *json, jsmn_parser *parser,
 {
 	int ret = 0;
 
-	OTA_DBG("JSON: max tokens supported %d\n", num_tokens);
+	SYS_LOG_DBG("JSON: max tokens supported %d", num_tokens);
 
 	jsmn_init(parser);
 	ret = jsmn_parse(parser, json->data, json->len, tks, num_tokens);
 	if (ret < 0) {
 		switch (ret) {
 		case JSMN_ERROR_NOMEM:
-			OTA_ERR("JSON: Not enough tokens\n");
+			SYS_LOG_ERR("JSON: Not enough tokens");
 			break;
 		case JSMN_ERROR_INVAL:
-			OTA_ERR("JSON: Invalid character found\n");
+			SYS_LOG_ERR("JSON: Invalid character found");
 			break;
 		case JSMN_ERROR_PART:
-			OTA_ERR("JSON: Incomplete JSON\n");
+			SYS_LOG_ERR("JSON: Incomplete JSON");
 			break;
 		}
 		return ret;
 	} else if (ret == 0 || tks[0].type != JSMN_OBJECT) {
-		OTA_ERR("JSON: First token is not an object\n");
+		SYS_LOG_ERR("JSON: First token is not an object");
 		return 0;
 	}
 
-	OTA_DBG("JSON: %d tokens found\n", ret);
+	SYS_LOG_DBG("JSON: %d tokens found", ret);
 
 	return ret;
 }
@@ -162,7 +165,8 @@ static int handle_headers_complete(struct http_parser *parser)
 {
 	/* Check if our buffer is enough for a valid body */
 	if (parser->nread + parser->content_length >= TCP_RECV_BUF_SIZE) {
-		OTA_ERR("header + body larger than buffer %d\n", TCP_RECV_BUF_SIZE);
+		SYS_LOG_ERR("header + body larger than buffer %d",
+			    TCP_RECV_BUF_SIZE);
 		return -1;
 	}
 	return 0;
@@ -205,7 +209,7 @@ static void hawkbit_header_cb(struct net_context *context,
 	struct http_parser parser;
 
 	if (!buf) {
-		OTA_ERR("Download: EARLY end of buffer\n");
+		SYS_LOG_ERR("Download: EARLY end of buffer");
 		hbd->header_status = -1;
 		k_sem_give(tcp_get_recv_wait_sem(TCP_CTX_HAWKBIT));
 		return;
@@ -244,8 +248,7 @@ static void hawkbit_header_cb(struct net_context *context,
 				hbd->http_header_read);
 
 	if (parser.status_code > 0 && parser.status_code != 200) {
-		OTA_ERR("Download: http error %d\n",
-			parser.status_code);
+		SYS_LOG_ERR("Download: http error %d", parser.status_code);
 		hbd->header_status = -1;
 	} else if (http_data.content_length > 0 &&
 		   parser.http_errno != HPE_INVALID_HEADER_TOKEN) {
@@ -287,7 +290,7 @@ static void hawkbit_download_cb(struct net_context *context,
 				hbd->http_content_size;
 		if (downloaded > hbd->download_progress) {
 			hbd->download_progress = downloaded;
-			OTA_DBG("%d%%\n", hbd->download_progress);
+			SYS_LOG_DBG("%d%%", hbd->download_progress);
 		}
 
 		rx_buf = rx_buf->frags;
@@ -316,12 +319,12 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 	ret = flash_erase(flash_dev, FLASH_BANK1_OFFSET, FLASH_BANK_SIZE);
 	flash_write_protection_set(flash_dev, true);
 	if (ret != 0) {
-		OTA_ERR("Failed to erase flash at offset %x, size %d\n",
+		SYS_LOG_ERR("Failed to erase flash at offset %x, size %d",
 					FLASH_BANK1_OFFSET, FLASH_BANK_SIZE);
 		return -EIO;
 	}
 
-	OTA_INFO("Starting the download and flash process\n");
+	SYS_LOG_INF("Starting the download and flash process");
 
 	/* Here we just proceed with a normal HTTP Download process */
 	memset(tcp_buffer, 0, size);
@@ -334,7 +337,7 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 	ret = tcp_send(TCP_CTX_HAWKBIT, (const char *) tcp_buffer,
 		       strlen(tcp_buffer));
 	if (ret < 0) {
-		OTA_ERR("Failed to send buffer, err %d\n", ret);
+		SYS_LOG_ERR("Failed to send buffer, err %d", ret);
 		return ret;
 	}
 
@@ -353,16 +356,15 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 	/* wait here for the connection to complete or timeout */
 	k_sem_take(tcp_get_recv_wait_sem(TCP_CTX_HAWKBIT), K_SECONDS(3));
 	if (hbd.header_status < 0) {
-		OTA_ERR("Unable to start the download process %d\n",
-			ret);
+		SYS_LOG_ERR("Unable to start the download process %d", ret);
 		ret = -1;
 		goto error_cleanup;
 	}
 
 	if (hbd.http_content_size != file_size) {
-		OTA_ERR("Download: file size not the same as reported, "
-			"found %d, expecting %d\n",
-			hbd.http_content_size, file_size);
+		SYS_LOG_ERR("Download: file size not the same as reported, "
+			    "found %d, expecting %d",
+			    hbd.http_content_size, file_size);
 		ret = -1;
 		goto error_cleanup;
 	}
@@ -389,8 +391,8 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 			    K_SECONDS(1)) != 0);
 
 	if (hbd.download_status < 0) {
-		OTA_ERR("Unable to finish the download process %d\n",
-			hbd.download_status);
+		SYS_LOG_ERR("Unable to finish the download process %d",
+			    hbd.download_status);
 		ret = -1;
 		goto error_cleanup;
 	}
@@ -408,13 +410,13 @@ static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
 	tcp_cleanup(TCP_CTX_HAWKBIT, true);
 
 	if (hbd.downloaded_size != hbd.http_content_size) {
-		OTA_ERR("Download: downloaded image size mismatch, "
-				"downloaded %d, expecting %d\n",
+		SYS_LOG_ERR("Download: downloaded image size mismatch, "
+				"downloaded %d, expecting %d",
 				hbd.downloaded_size, hbd.http_content_size);
 		return -1;
 	}
 
-	OTA_INFO("Download: downloaded bytes %d\n", hbd.downloaded_size);
+	SYS_LOG_INF("Download: downloaded bytes %d", hbd.downloaded_size);
 
 	return 0;
 
@@ -434,18 +436,18 @@ static int hawkbit_query(uint8_t *tcp_buffer, size_t size,
 		return -EINVAL;
 	}
 
-	OTA_DBG("\n\n%s\n", tcp_buffer);
+	SYS_LOG_DBG("\n\n%s", tcp_buffer);
 
 	ret = tcp_send(TCP_CTX_HAWKBIT, (const char *) tcp_buffer,
 		       strlen(tcp_buffer));
 	if (ret < 0) {
-		OTA_ERR("Failed to send buffer, err %d\n", ret);
+		SYS_LOG_ERR("Failed to send buffer, err %d", ret);
 		return ret;
 	}
 	ret = tcp_recv(TCP_CTX_HAWKBIT, (char *) tcp_buffer,
 		       size, HAWKBIT_RX_TIMEOUT);
 	if (ret <= 0) {
-		OTA_ERR("No received data (ret=%d)\n", ret);
+		SYS_LOG_ERR("No received data (ret=%d)", ret);
 		tcp_cleanup(TCP_CTX_HAWKBIT, true);
 		return -1;
 	}
@@ -459,24 +461,24 @@ static int hawkbit_query(uint8_t *tcp_buffer, size_t size,
 	http_parser_execute(&parser, &http_settings,
 				(const char *) tcp_buffer, ret);
 	if (parser.status_code != 200) {
-		OTA_ERR("Invalid HTTP status code %d\n",
+		SYS_LOG_ERR("Invalid HTTP status code %d",
 						parser.status_code);
 		return -1;
 	}
 
 	if (json) {
 		if (json->data == NULL) {
-			OTA_ERR("JSON data not found\n");
+			SYS_LOG_ERR("JSON data not found");
 			return -1;
 		}
 		/* FIXME: Each poll needs a new connection, this saves
 		 * us from using content from a previous package.
 		 */
 		json->data[json->len] = '\0';
-		OTA_DBG("JSON DATA:\n%s\n", json->data);
+		SYS_LOG_DBG("JSON DATA:\n%s", json->data);
 	}
 
-	OTA_DBG("Hawkbit query completed\n");
+	SYS_LOG_DBG("Hawkbit query completed");
 
 	return 0;
 }
@@ -485,7 +487,7 @@ static int hawkbit_report_config_data(uint8_t *tcp_buffer, size_t size)
 {
 	char *helper;
 
-	OTA_INFO("Reporting target config data to Hawkbit\n");
+	SYS_LOG_INF("Reporting target config data to Hawkbit");
 
 	/* Use half for the header and half for the json content */
 	memset(tcp_buffer, 0, size);
@@ -512,7 +514,7 @@ static int hawkbit_report_config_data(uint8_t *tcp_buffer, size_t size)
 			HAWKBIT_HOST, strlen(helper), helper);
 
 	if (hawkbit_query(tcp_buffer, size, NULL) < 0) {
-		OTA_ERR("Error when reporting config data to Hawkbit\n");
+		SYS_LOG_ERR("Error when reporting config data to Hawkbit");
 		return -1;
 	}
 
@@ -564,7 +566,7 @@ static int hawkbit_report_update_status(int acid,
 		break;
 	}
 
-	OTA_INFO("Reporting action ID feedback: %s\n", finished);
+	SYS_LOG_INF("Reporting action ID feedback: %s", finished);
 
 	/* Use half for the header and half for the json content */
 	memset(tcp_buffer, 0, size);
@@ -590,7 +592,7 @@ static int hawkbit_report_update_status(int acid,
 			HAWKBIT_HOST, strlen(helper), helper);
 
 	if (hawkbit_query(tcp_buffer, size, NULL) < 0) {
-		OTA_ERR("Error when reporting acId feedback to Hawkbit\n");
+		SYS_LOG_ERR("Error when reporting acId feedback to Hawkbit");
 		return -1;
 	}
 
@@ -612,7 +614,7 @@ int hawkbit_ddi_poll(void)
 	int file_size = 0;
 	char *helper;
 
-	OTA_DBG("Polling target data from Hawkbit\n");
+	SYS_LOG_DBG("Polling target data from Hawkbit");
 
 	memset(tcp_buf, 0, TCP_RECV_BUF_SIZE);
 	snprintf(tcp_buf, TCP_RECV_BUF_SIZE, "GET %s/%s-%x HTTP/1.1\r\n"
@@ -625,14 +627,14 @@ int hawkbit_ddi_poll(void)
 
 	ret = hawkbit_query(tcp_buf, TCP_RECV_BUF_SIZE, &json);
 	if (ret < 0) {
-		OTA_ERR("Error when polling from Hawkbit\n");
+		SYS_LOG_ERR("Error when polling from Hawkbit");
 		return ret;
 	}
 
 	ntk = json_parser(&json, &jsmnp, jtks,
 			sizeof(jtks) / sizeof(jsmntok_t));
 	if (ntk <= 0) {
-		OTA_ERR("Error when parsing JSON from target\n");
+		SYS_LOG_ERR("Error when parsing JSON from target");
 		return -1;
 	}
 
@@ -646,13 +648,13 @@ int hawkbit_ddi_poll(void)
 				(jsoneq(json.data, &jtks[i + 4], "sleep"))) {
 			/* Sleep format: HH:MM:SS */
 			if (jtks[i + 5].end - jtks[i + 5].start > 8) {
-				OTA_ERR("Invalid poll sleep string\n");
+				SYS_LOG_ERR("Invalid poll sleep string");
 				continue;
 			}
 			len = hawkbit_time2sec(json.data + jtks[i + 5].start);
 			if (len > 0 &&
 				poll_sleep != K_SECONDS(len)) {
-				OTA_INFO("New poll sleep %d seconds\n", len);
+				SYS_LOG_INF("New poll sleep %d seconds", len);
 				poll_sleep = K_SECONDS(len);
 				i += 5;
 			}
@@ -669,7 +671,7 @@ int hawkbit_ddi_poll(void)
 			len = json.data + jtks[i + 3].end - helper;
 			memcpy(&deployment_base, helper, len);
 			deployment_base[len] = '\0';
-			OTA_DBG("Deployment base %s\n", deployment_base);
+			SYS_LOG_DBG("Deployment base %s", deployment_base);
 			i += 3;
 		} else if (jsoneq(json.data, &jtks[i], "configData") &&
 				(i + 3 < ntk) &&
@@ -685,7 +687,7 @@ int hawkbit_ddi_poll(void)
 	}
 
 	if (strlen(deployment_base) == 0) {
-		OTA_DBG("No deployment base found, no actions to take\n");
+		SYS_LOG_DBG("No deployment base found, no actions to take");
 		return 0;
 	}
 
@@ -701,7 +703,7 @@ int hawkbit_ddi_poll(void)
 
 	memset(&json, 0, sizeof(struct json_data_t));
 	if (hawkbit_query(tcp_buf, TCP_RECV_BUF_SIZE, &json) < 0) {
-		OTA_ERR("Error when querying from Hawkbit\n");
+		SYS_LOG_ERR("Error when querying from Hawkbit");
 		return -1;
 	}
 
@@ -712,7 +714,7 @@ int hawkbit_ddi_poll(void)
 	ntk = json_parser(&json, &jsmnp, jtks,
 			sizeof(jtks) / sizeof(jsmntok_t));
 	if (ntk <= 0) {
-		OTA_ERR("Error when parsing JSON from deploymentBase\n");
+		SYS_LOG_ERR("Error when parsing JSON from deploymentBase");
 		return -1;
 	}
 
@@ -723,7 +725,7 @@ int hawkbit_ddi_poll(void)
 			/* id -> id */
 			hawkbit_acid = atoi_n(json.data + jtks[i + 1].start,
 					jtks[i + 1].end - jtks[i + 1].start);
-			OTA_DBG("Hawkbit ACTION ID %d\n", hawkbit_acid);
+			SYS_LOG_DBG("Hawkbit ACTION ID %d", hawkbit_acid);
 			i += 1;
 		} else if (jsoneq(json.data, &jtks[i], "deployment")) {
 			/* deployment -> download, update or chunks */
@@ -741,20 +743,20 @@ int hawkbit_ddi_poll(void)
 			/* Now just find the update action */
 			if (jsoneq(json.data, &jtks[i], "skip")) {
 				hawkbit_update_action = HAWKBIT_UPDATE_SKIP;
-				OTA_DBG("Hawkbit update action: SKIP\n");
+				SYS_LOG_DBG("Hawkbit update action: SKIP");
 			} else if (jsoneq(json.data, &jtks[i], "attempt")) {
 				hawkbit_update_action = HAWKBIT_UPDATE_ATTEMPT;
-				OTA_DBG("Hawkbit update action: ATTEMPT\n");
+				SYS_LOG_DBG("Hawkbit update action: ATTEMPT");
 			} else if (jsoneq(json.data, &jtks[i], "forced")) {
 				hawkbit_update_action = HAWKBIT_UPDATE_FORCED;
-				OTA_DBG("Hawkbit update action: FORCED\n");
+				SYS_LOG_DBG("Hawkbit update action: FORCED");
 			}
 		} else if (jsoneq(json.data, &jtks[i], "chunks")) {
 			if (jtks[i + 1].type != JSMN_ARRAY) {
 				continue;
 			}
 			if (jtks[i + 1].size != 1) {
-				OTA_ERR("Only one chunk is supported, %d\n",
+				SYS_LOG_ERR("Only one chunk is supported, %d",
 							jtks[i + 1].size);
 				ret = -1;
 				break;
@@ -762,7 +764,7 @@ int hawkbit_ddi_poll(void)
 			i += 1;
 		} else if (jsoneq(json.data, &jtks[i], "part")) {
 			if (!jsoneq(json.data, &jtks[i + 1], "os")) {
-				OTA_ERR("Only part 'os' is supported\n");
+				SYS_LOG_ERR("Only part 'os' is supported");
 				ret = -1;
 				break;
 			}
@@ -770,13 +772,13 @@ int hawkbit_ddi_poll(void)
 		} else if (jsoneq(json.data, &jtks[i], "size")) {
 			file_size = atoi_n(json.data + jtks[i + 1].start,
 					jtks[i + 1].end - jtks[i + 1].start);
-			OTA_DBG("Artifact file size: %d\n", file_size);
+			SYS_LOG_DBG("Artifact file size: %d", file_size);
 			i += 1;
 		} else if (jsoneq(json.data, &jtks[i], "download-http")) {
 			/* We just support DEFAULT tenant on the same server */
 			if (i + 3 >= ntk ||
 				!jsoneq(json.data, &jtks[i + 2], "href")) {
-				OTA_ERR("No href entry for download-http\n");
+				SYS_LOG_ERR("No href entry for download-http");
 				ret = -1;
 				continue;
 			}
@@ -789,13 +791,13 @@ int hawkbit_ddi_poll(void)
 			}
 			len = json.data + jtks[i + 3].end - helper;
 			if (len >= sizeof(download_http)) {
-				OTA_ERR("Download HREF too big (%d)\n", len);
+				SYS_LOG_ERR("Download HREF too big (%d)", len);
 				ret = - 1;
 				continue;
 			}
 			memcpy(&download_http, helper, len);
 			download_http[len] = '\0';
-			OTA_DBG("Artifact address: %s\n", download_http);
+			SYS_LOG_DBG("Artifact address: %s", download_http);
 			i += 3;
 		}
 	}
@@ -820,7 +822,7 @@ int hawkbit_ddi_poll(void)
 
 	/* Perform the action */
 	if (strlen(download_http) == 0) {
-		OTA_DBG("No download http address found, no action\n");
+		SYS_LOG_DBG("No download http address found, no action");
 		return 0;
 	}
 	/* Error detected when parsing the SM */
@@ -832,7 +834,7 @@ int hawkbit_ddi_poll(void)
 		return -1;
 	}
 	if (file_size > FLASH_BANK_SIZE) {
-		OTA_ERR("Artifact file size too big (%d)\n", file_size);
+		SYS_LOG_ERR("Artifact file size too big (%d)", file_size);
 		hawkbit_report_update_status(hawkbit_acid,
 					     tcp_buf, TCP_RECV_BUF_SIZE,
 					     HAWKBIT_RESULT_FAILURE,
@@ -841,7 +843,7 @@ int hawkbit_ddi_poll(void)
 	}
 
 	/* Here we should have everything we need to apply the action */
-	OTA_INFO("Valid action ID %d found, proceeding with the update\n",
+	SYS_LOG_INF("Valid action ID %d found, proceeding with the update",
 					hawkbit_acid);
 	hawkbit_report_update_status(hawkbit_acid,
 				     tcp_buf, TCP_RECV_BUF_SIZE,
@@ -849,19 +851,19 @@ int hawkbit_ddi_poll(void)
 				     HAWKBIT_EXEC_PROCEEDING);
 	ret = hawkbit_install_update(tcp_buf, TCP_RECV_BUF_SIZE, download_http, file_size);
 	if (ret != 0) {
-		OTA_ERR("Failed to install the update for action ID %d\n",
+		SYS_LOG_ERR("Failed to install the update for action ID %d",
 					hawkbit_acid);
 		return -1;
 	}
 
-	OTA_INFO("Triggering OTA update.\n");
+	SYS_LOG_INF("Triggering OTA update.");
 	boot_trigger_ota();
 	ret = boot_acid_update(BOOT_ACID_UPDATE, hawkbit_acid);
 	if (ret != 0) {
-		OTA_ERR("Failed to update ACID: %d\n", ret);
+		SYS_LOG_ERR("Failed to update ACID: %d", ret);
 		return -1;
 	}
-	OTA_INFO("Image id %d flashed successfuly, rebooting now\n",
+	SYS_LOG_INF("Image id %d flashed successfuly, rebooting now",
 					hawkbit_acid);
 
 	/* Reboot and let the bootloader take care of the swap process */
