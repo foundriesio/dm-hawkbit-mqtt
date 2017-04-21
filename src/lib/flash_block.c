@@ -15,8 +15,7 @@
 #include <errno.h>
 #include <flash.h>
 
-/* TODO: fix when the relevant headers are part of lib/ */
-#include "../tcp.h"
+#include "tcp.h"
 
 /*
  * TODO:

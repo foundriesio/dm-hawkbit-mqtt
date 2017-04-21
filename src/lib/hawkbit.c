@@ -30,9 +30,7 @@
 #include "mcuboot.h"
 #include "flash_block.h"
 #include "product_id.h"
-/* TODO: fix these when the relevant headers are part of lib/ */
-#include "../tcp.h"
-
+#include "tcp.h"
 
 /*
  * TODO:
