@@ -14,6 +14,7 @@
 #include <sensor.h>
 #include <tc_util.h>
 #include <misc/reboot.h>
+#include <board.h>
 
 /* Local helpers and functions */
 #include "tstamp_log.h"
@@ -26,6 +27,16 @@
 #include "bluemix.h"
 #include "device.h"
 #include "tcp.h"
+
+/*
+ * GPIOs. These can be customized by device if needed.
+ */
+#define LED_GPIO_PIN	LED0_GPIO_PIN
+#define LED_GPIO_PORT	LED0_GPIO_PORT
+#if defined(CONFIG_BOARD_96B_NITROGEN) || defined(CONFIG_BOARD_96B_CARBON)
+#define BT_CONNECT_LED	BT_GPIO_PIN
+#define GPIO_DRV_BT	BT_GPIO_PORT
+#endif
 
 #define FOTA_STACK_SIZE 3840
 char fota_thread_stack[FOTA_STACK_SIZE];
@@ -47,6 +58,17 @@ int bluemix_sleep = K_SECONDS(3);
 static bool bt_connection_state = false;
 
 /* BT LE Connect/Disconnect callbacks */
+static void set_bluetooth_led(bool state)
+{
+#if defined(GPIO_DRV_BT) && defined(BT_CONNECT_LED)
+	struct device *gpio;
+
+	gpio = device_get_binding(GPIO_DRV_BT);
+	gpio_pin_configure(gpio, BT_CONNECT_LED, GPIO_DIR_OUT);
+	gpio_pin_write(gpio, BT_CONNECT_LED, state);
+#endif
+}
+
 static void connected(struct bt_conn *conn, uint8_t err)
 {
 	if (err) {

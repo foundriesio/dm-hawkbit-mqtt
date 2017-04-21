@@ -40,14 +40,3 @@ void set_device_id(void)
 
 	product_id.number = hash32(buffer, DEVICE_ID_LENGTH*8);
 }
-
-void set_bluetooth_led(bool state)
-{
-#if defined(GPIO_DRV_BT) && defined(BT_CONNECT_LED)
-	struct device *gpio;
-
-	gpio = device_get_binding(GPIO_DRV_BT);
-	gpio_pin_configure(gpio, BT_CONNECT_LED, GPIO_DIR_OUT);
-	gpio_pin_write(gpio, BT_CONNECT_LED, state);
-#endif
-}

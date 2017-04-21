@@ -9,15 +9,6 @@
 
 #include <board.h>
 
-/* GPIO */
-/* This can be customized by device if needed */
-#define LED_GPIO_PIN	LED0_GPIO_PIN
-#define LED_GPIO_PORT	LED0_GPIO_PORT
-#if defined(CONFIG_BOARD_96B_NITROGEN) || defined(CONFIG_BOARD_96B_CARBON)
-#define BT_CONNECT_LED	BT_GPIO_PIN
-#define GPIO_DRV_BT	BT_GPIO_PORT
-#endif
-
 /* Bluetooth */
 #define DEVICE_NAME "Linaro IPSP node"
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
@@ -50,6 +41,5 @@ struct product_id_t {
 extern struct product_id_t product_id;
 
 void set_device_id(void);
-void set_bluetooth_led(bool state);
 
 #endif	/* __FOTA_DEVICE_H__ */
