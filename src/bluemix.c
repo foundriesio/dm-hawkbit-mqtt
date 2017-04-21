@@ -189,13 +189,13 @@ int bluemix_init(struct bluemix_ctx *ctx)
 	 * Initialize the IDs etc. before doing anything else.
 	 */
 	snprintf(ctx->bm_id, sizeof(ctx->bm_id), "%s-%08x",
-		 CONFIG_FOTA_BLUEMIX_DEVICE_TYPE, product_id.number);
+		 CONFIG_FOTA_BLUEMIX_DEVICE_TYPE, product_id_get()->number);
 	snprintf(ctx->client_id, sizeof(ctx->client_id),
 		"d:%s:%s:%s", CONFIG_FOTA_BLUEMIX_ORG,
 		CONFIG_FOTA_BLUEMIX_DEVICE_TYPE,
 		ctx->bm_id);
 	snprintf(ctx->bm_auth_token, sizeof(ctx->bm_auth_token),
-		 "%08x", product_id.number);
+		 "%08x", product_id_get()->number);
 
 	k_sem_init(&ctx->reply_sem, 0, 1);
 

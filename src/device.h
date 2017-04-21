@@ -12,8 +12,14 @@ struct product_id_t {
 	uint32_t number;
 };
 
-extern struct product_id_t product_id;
-
-void set_device_id(void);
+/**
+ * @brief Get a pointer to this device's unique ID.
+ *
+ * This function is safe to call from the time main() is invoked and
+ * afterwards. Before, its return value is unpredictable.
+ *
+ * @return Pointer to product ID structure.
+ */
+const struct product_id_t *product_id_get(void);
 
 #endif	/* __FOTA_DEVICE_H__ */

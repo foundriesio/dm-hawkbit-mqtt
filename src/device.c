@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <zephyr.h>
+#include <init.h>
 #include <soc.h>
 #include <gpio.h>
 #include "device.h"
@@ -27,10 +28,14 @@
 #define DEVICE_ID_LENGTH	4
 #endif
 
-
-struct product_id_t product_id = {
+static struct product_id_t product_id = {
 	.name = CONFIG_BOARD,
 };
+
+const struct product_id_t *product_id_get(void)
+{
+	return &product_id;
+}
 
 #define HASH_MULTIPLIER		37
 static uint32_t hash32(char *str, int len)
@@ -46,10 +51,12 @@ static uint32_t hash32(char *str, int len)
 }
 
 /* Find and set common unique device specific information */
-void set_device_id(void)
+static int product_id_init(struct device *dev)
 {
 	int i;
 	char buffer[DEVICE_ID_LENGTH*8 + 1];
+
+	ARG_UNUSED(dev);
 
 	for (i = 0; i < DEVICE_ID_LENGTH; i++) {
 		sprintf(buffer + i*8, "%08x",
@@ -57,4 +64,8 @@ void set_device_id(void)
 	}
 
 	product_id.number = hash32(buffer, DEVICE_ID_LENGTH*8);
+
+	return 0;
 }
+
+SYS_INIT(product_id_init, APPLICATION, 99);

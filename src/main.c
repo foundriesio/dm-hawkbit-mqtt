@@ -348,12 +348,11 @@ void main(void)
 {
 	int err;
 
-	set_device_id();
 	tstamp_hook_install();
 
 	SYS_LOG_INF("Linaro FOTA example application");
 	SYS_LOG_INF("Device: %s, Serial: %x",
-		    product_id.name, product_id.number);
+		    product_id_get()->name, product_id_get()->number);
 
 	TC_START("Running Built in Self Test (BIST)");
 

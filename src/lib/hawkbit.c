@@ -571,6 +571,7 @@ static int hawkbit_query(uint8_t *tcp_buffer, size_t size,
 
 static int hawkbit_report_config_data(uint8_t *tcp_buffer, size_t size)
 {
+	const struct product_id_t *product_id = product_id_get();
 	char *helper;
 
 	SYS_LOG_INF("Reporting target config data to Hawkbit");
@@ -587,7 +588,7 @@ static int hawkbit_report_config_data(uint8_t *tcp_buffer, size_t size)
 			"\"status\":{"
 				"\"result\":{\"finished\":\"success\"},"
 				"\"execution\":\"closed\"}"
-			"}", product_id.name, product_id.number);
+			"}", product_id->name, product_id->number);
 
 	/* size / 2 should be enough for the header */
 	snprintf(tcp_buffer, size, "PUT %s/%s-%x/configData HTTP/1.1\r\n"
@@ -596,7 +597,7 @@ static int hawkbit_report_config_data(uint8_t *tcp_buffer, size_t size)
 			"Content-Length: %d\r\n"
 			"Connection: close\r\n"
 			"\r\n%s", HAWKBIT_JSON_URL,
-			product_id.name, product_id.number,
+			product_id->name, product_id->number,
 			HAWKBIT_HOST, strlen(helper), helper);
 
 	if (hawkbit_query(tcp_buffer, size, NULL) < 0) {
@@ -674,7 +675,7 @@ static int hawkbit_report_update_status(int acid,
 			"Content-Length: %d\r\n"
 			"Connection: close\r\n"
 			"\r\n%s", HAWKBIT_JSON_URL,
-			product_id.name, product_id.number, acid,
+			product_id_get()->name, product_id_get()->number, acid,
 			HAWKBIT_HOST, strlen(helper), helper);
 
 	if (hawkbit_query(tcp_buffer, size, NULL) < 0) {
@@ -699,6 +700,7 @@ int hawkbit_ddi_poll(void)
 	bool update_config_data = false;
 	int file_size = 0;
 	char *helper;
+	const struct product_id_t *product_id = product_id_get();
 
 	SYS_LOG_DBG("Polling target data from Hawkbit");
 
@@ -708,7 +710,8 @@ int hawkbit_ddi_poll(void)
 				"Connection: close\r\n"
 				"\r\n",
 				HAWKBIT_JSON_URL,
-				product_id.name, product_id.number,
+				product_id->name,
+				product_id->number,
 				HAWKBIT_HOST);
 
 	ret = hawkbit_query(tcp_buf, TCP_RECV_BUF_SIZE, &json);
@@ -784,7 +787,8 @@ int hawkbit_ddi_poll(void)
 				"Connection: close\r\n"
 				"\r\n",
 				HAWKBIT_JSON_URL,
-				product_id.name, product_id.number,
+				product_id->name,
+				product_id->number,
 				deployment_base, HAWKBIT_HOST);
 
 	memset(&json, 0, sizeof(struct json_data_t));

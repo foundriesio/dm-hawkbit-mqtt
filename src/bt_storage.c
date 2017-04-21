@@ -57,11 +57,10 @@ static void set_own_bt_addr(void)
 	uint8_t tmp;
 
 	/*
-	 * Generate a static BT addr using the unique
-	 * product number generated in set_device_id()
+	 * Generate a static BT addr using the unique product number.
 	 */
 	for (i = 0; i < 4; i++) {
-		tmp = (product_id.number >> i * 8) & 0xff;
+		tmp = (product_id_get()->number >> i * 8) & 0xff;
 		bt_addr.a.val[i] = tmp;
 	}
 
