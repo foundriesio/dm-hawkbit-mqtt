@@ -25,7 +25,7 @@
 #include "hawkbit.h"
 #endif
 #include "bluemix.h"
-#include "device.h"
+#include "product_id.h"
 #include "tcp.h"
 
 /*

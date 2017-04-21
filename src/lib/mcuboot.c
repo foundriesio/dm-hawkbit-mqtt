@@ -16,7 +16,7 @@
 #include <init.h>
 
 #include "mcuboot.h"
-#include "device.h"
+#include "product_id.h"
 
 /*
  * Helpers for image trailer, as defined by mcuboot.

@@ -9,7 +9,7 @@
 #include <init.h>
 #include <soc.h>
 #include <gpio.h>
-#include "device.h"
+#include "product_id.h"
 
 /*
  * General hardware specific configs

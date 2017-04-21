@@ -20,7 +20,7 @@
 #include <soc.h>
 #include <tc_util.h>
 
-#include "device.h"
+#include "product_id.h"
 
 /* Any by default, can change depending on the hardware implementation */
 static bt_addr_le_t bt_addr;

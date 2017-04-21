@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include "device.h"
+#include "product_id.h"
 #include "tcp.h"
 #include "bluemix.h"
 
