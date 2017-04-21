@@ -9,13 +9,6 @@
 
 #include <board.h>
 
-/* Bluetooth */
-#define DEVICE_NAME "Linaro IPSP node"
-#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
-#define DEVICE_CONNECTED_NAME "Connected IPSP node"
-#define DEVICE_CONNECTED_NAME_LEN (sizeof(DEVICE_CONNECTED_NAME) - 1)
-#define UNKNOWN_APPEARANCE 0x0000
-
 /*
  * General hardware specific configs
  *

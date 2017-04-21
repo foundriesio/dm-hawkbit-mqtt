@@ -19,8 +19,13 @@
 
 #include <tc_util.h>
 
-#include "device.h"
 #include "bt_ipss.h"
+
+#define DEVICE_NAME "Linaro IPSP node"
+#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
+#define DEVICE_CONNECTED_NAME "Connected IPSP node"
+#define DEVICE_CONNECTED_NAME_LEN (sizeof(DEVICE_CONNECTED_NAME) - 1)
+#define UNKNOWN_APPEARANCE 0x0000
 
 #if !defined(CONFIG_BLUETOOTH_GATT_DYNAMIC_DB)
 static ssize_t read_name(struct bt_conn *conn, const struct bt_gatt_attr *attr,
