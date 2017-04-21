@@ -85,6 +85,11 @@ typedef enum {
 	HAWKBIT_EXEC_RESUMED,
 } hawkbit_exec_status_t;
 
+typedef enum {
+	HAWKBIT_ACID_CURRENT = 0,
+	HAWKBIT_ACID_UPDATE,
+} hawkbit_dev_acid_t;
+
 #define HAWKBIT_RX_TIMEOUT	K_SECONDS(3)
 
 /* Utils */
@@ -194,6 +199,86 @@ static int handle_headers_complete_download(struct http_parser *parser)
 	}
 
 	return 1;
+}
+
+void hawkbit_device_acid_read(struct hawkbit_device_acid *device_acid)
+{
+	flash_read(flash_dev, FLASH_STATE_OFFSET, device_acid,
+		   sizeof(*device_acid));
+}
+
+/**
+ * @brief Update an ACID of a given type on flash.
+ *
+ * @param type ACID type to update
+ * @param acid New ACID value
+ * @return 0 on success, negative on error.
+ */
+static int hawkbit_device_acid_update(hawkbit_dev_acid_t type,
+				      uint32_t new_value)
+{
+	struct hawkbit_device_acid device_acid;
+	int ret;
+
+	flash_read(flash_dev, FLASH_STATE_OFFSET, &device_acid,
+		   sizeof(device_acid));
+	if (type == HAWKBIT_ACID_UPDATE) {
+		device_acid.update = new_value;
+	} else {
+		device_acid.current = new_value;
+	}
+
+	flash_write_protection_set(flash_dev, false);
+	ret = flash_erase(flash_dev, FLASH_STATE_OFFSET, FLASH_STATE_SIZE);
+	flash_write_protection_set(flash_dev, true);
+	if (ret) {
+		return ret;
+	}
+
+	flash_write_protection_set(flash_dev, false);
+	ret = flash_write(flash_dev, FLASH_STATE_OFFSET, &device_acid,
+			  sizeof(device_acid));
+	flash_write_protection_set(flash_dev, true);
+	return ret;
+}
+
+int hawkbit_init(void)
+{
+	int ret = 0;
+	struct hawkbit_device_acid init_acid;
+	uint8_t boot_status;
+
+	/* Update boot status and acid */
+	hawkbit_device_acid_read(&init_acid);
+	SYS_LOG_INF("ACID: current %d, update %d",
+		    init_acid.current, init_acid.update);
+	boot_status = boot_status_read();
+	SYS_LOG_INF("Current boot status %x", boot_status);
+	if (boot_status == BOOT_STATUS_ONGOING) {
+		boot_status_update();
+		SYS_LOG_INF("Updated boot status to %x", boot_status_read());
+		ret = boot_erase_flash_bank(FLASH_BANK1_OFFSET);
+		if (ret) {
+			SYS_LOG_ERR("Flash bank erase at offset %x: error %d",
+				    FLASH_BANK1_OFFSET, ret);
+			return ret;
+		} else {
+			SYS_LOG_DBG("Erased flash bank at offset %x",
+				    FLASH_BANK1_OFFSET);
+		}
+		if (init_acid.update != -1) {
+			ret = hawkbit_device_acid_update(HAWKBIT_ACID_CURRENT,
+						  init_acid.update);
+		}
+		if (!ret) {
+			hawkbit_device_acid_read(&init_acid);
+			SYS_LOG_INF("ACID updated, current %d, update %d",
+				    init_acid.current, init_acid.update);
+		} else {
+			SYS_LOG_ERR("Failed to update ACID: %d", ret);
+		}
+	}
+	return ret;
 }
 
 static void hawkbit_header_cb(struct net_context *context,
@@ -605,8 +690,8 @@ int hawkbit_ddi_poll(void)
 	jsmntok_t jtks[60];	/* Enough for one artifact per SM */
 	int i, ret, len, ntk;
 	static hawkbit_update_action_t hawkbit_update_action;
-	static int hawkbit_acid = 0;
-	struct boot_acid boot_acid;
+	static int json_acid;
+	struct hawkbit_device_acid device_acid;
 	struct json_data_t json = { NULL, 0 };
 	char deployment_base[40];	/* TODO: Find a better value */
 	char download_http[200];	/* TODO: Find a better value */
@@ -723,9 +808,9 @@ int hawkbit_ddi_poll(void)
 	for (i = 1; i < ntk - 1; i++) {
 		if (jsoneq(json.data, &jtks[i], "id")) {
 			/* id -> id */
-			hawkbit_acid = atoi_n(json.data + jtks[i + 1].start,
+			json_acid = atoi_n(json.data + jtks[i + 1].start,
 					jtks[i + 1].end - jtks[i + 1].start);
-			SYS_LOG_DBG("Hawkbit ACTION ID %d", hawkbit_acid);
+			SYS_LOG_DBG("Hawkbit ACTION ID %d", json_acid);
 			i += 1;
 		} else if (jsoneq(json.data, &jtks[i], "deployment")) {
 			/* deployment -> download, update or chunks */
@@ -802,18 +887,18 @@ int hawkbit_ddi_poll(void)
 		}
 	}
 
-	boot_acid_read(&boot_acid);
+	hawkbit_device_acid_read(&device_acid);
 
-	if (boot_acid.current == hawkbit_acid) {
+	if (device_acid.current == json_acid) {
 		/* We are coming from a successful flash, update the server */
-		hawkbit_report_update_status(hawkbit_acid,
+		hawkbit_report_update_status(json_acid,
 					     tcp_buf, TCP_RECV_BUF_SIZE,
 					     HAWKBIT_RESULT_SUCCESS,
 					     HAWKBIT_EXEC_CLOSED);
 		return 0;
-	} else if (boot_acid.update == hawkbit_acid) {
+	} else if (device_acid.update == json_acid) {
 		/* There was already an atempt, so announce a failure */
-		hawkbit_report_update_status(hawkbit_acid,
+		hawkbit_report_update_status(json_acid,
 					     tcp_buf, TCP_RECV_BUF_SIZE,
 					     HAWKBIT_RESULT_FAILURE,
 					     HAWKBIT_EXEC_CLOSED);
@@ -827,7 +912,7 @@ int hawkbit_ddi_poll(void)
 	}
 	/* Error detected when parsing the SM */
 	if (ret == -1) {
-		hawkbit_report_update_status(hawkbit_acid,
+		hawkbit_report_update_status(json_acid,
 					     tcp_buf, TCP_RECV_BUF_SIZE,
 					     HAWKBIT_RESULT_FAILURE,
 					     HAWKBIT_EXEC_CLOSED);
@@ -835,7 +920,7 @@ int hawkbit_ddi_poll(void)
 	}
 	if (file_size > FLASH_BANK_SIZE) {
 		SYS_LOG_ERR("Artifact file size too big (%d)", file_size);
-		hawkbit_report_update_status(hawkbit_acid,
+		hawkbit_report_update_status(json_acid,
 					     tcp_buf, TCP_RECV_BUF_SIZE,
 					     HAWKBIT_RESULT_FAILURE,
 					     HAWKBIT_EXEC_CLOSED);
@@ -844,27 +929,27 @@ int hawkbit_ddi_poll(void)
 
 	/* Here we should have everything we need to apply the action */
 	SYS_LOG_INF("Valid action ID %d found, proceeding with the update",
-					hawkbit_acid);
-	hawkbit_report_update_status(hawkbit_acid,
+					json_acid);
+	hawkbit_report_update_status(json_acid,
 				     tcp_buf, TCP_RECV_BUF_SIZE,
 				     HAWKBIT_RESULT_SUCCESS,
 				     HAWKBIT_EXEC_PROCEEDING);
 	ret = hawkbit_install_update(tcp_buf, TCP_RECV_BUF_SIZE, download_http, file_size);
 	if (ret != 0) {
 		SYS_LOG_ERR("Failed to install the update for action ID %d",
-					hawkbit_acid);
+					json_acid);
 		return -1;
 	}
 
 	SYS_LOG_INF("Triggering OTA update.");
 	boot_trigger_ota();
-	ret = boot_acid_update(BOOT_ACID_UPDATE, hawkbit_acid);
+	ret = hawkbit_device_acid_update(HAWKBIT_ACID_UPDATE, json_acid);
 	if (ret != 0) {
 		SYS_LOG_ERR("Failed to update ACID: %d", ret);
 		return -1;
 	}
 	SYS_LOG_INF("Image id %d flashed successfuly, rebooting now",
-					hawkbit_acid);
+					json_acid);
 
 	/* Reboot and let the bootloader take care of the swap process */
 	sys_reboot(0);

@@ -13,6 +13,13 @@
 
 extern int poll_sleep;
 
+struct hawkbit_device_acid {
+	uint32_t current;
+	uint32_t update;
+};
+
+int hawkbit_init(void);
+void hawkbit_device_acid_read(struct hawkbit_device_acid *device_acid);
 int hawkbit_ddi_poll(void);
 
 #endif	/* __FOTA_HAWKBIT_H__ */

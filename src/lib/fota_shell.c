@@ -20,11 +20,11 @@
 	 "Retrieve local state or fetch binaries from the network.\n"	\
 	 "\n"								\
 	 "Available objects:\n"						\
-	 "acid - Get current and update ACID values.\n")
+	 "acid - Get current and update hawkBit ACID values.\n")
 
 static int fota_cmd_get_acid(int argc, char *argv[])
 {
-	struct boot_acid acid;
+	struct hawkbit_dev_storage_acid acid;
 
 	if (argc != 1) {
 		printk("\"get acid\" takes no arguments.\n");
@@ -33,7 +33,7 @@ static int fota_cmd_get_acid(int argc, char *argv[])
 
 	ARG_UNUSED(argv);
 
-	boot_acid_read(&acid);
+	hawkbit_device_acid_read(&acid);
 	printk("ACID: current=%d, update=%d\n", acid.current, acid.update);
 	return 0;
 }

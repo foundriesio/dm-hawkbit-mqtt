@@ -90,58 +90,24 @@ static int start_tcp(void)
 	return ret;
 }
 
-static int fota_update_acid(struct boot_acid *acid)
-{
-	int ret = 0;
-	if (acid->update != -1) {
-		ret = boot_acid_update(BOOT_ACID_CURRENT, acid->update);
-		if (!ret) {
-			boot_acid_read(acid);
-			SYS_LOG_INF("ACID updated, current %d, update %d",
-				    acid->current, acid->update);
-		} else {
-			SYS_LOG_ERR("Failed to update ACID: %d", ret);
-		}
-	}
-	return ret;
-}
-
 static int fota_init(void)
 {
-	struct boot_acid acid;
-	uint8_t boot_status;
 	int ret;
 
 	TC_PRINT("Initializing FOTA backend\n");
-
-	/* Update boot status and acid */
-	boot_acid_read(&acid);
-	SYS_LOG_INF("ACID: current %d, update %d",
-		 acid.current, acid.update);
-	boot_status = boot_status_read();
-	SYS_LOG_INF("Current boot status %x", boot_status);
-	if (boot_status == BOOT_STATUS_ONGOING) {
-		boot_status_update();
-		SYS_LOG_INF("Updated boot status to %x", boot_status_read());
-		ret = boot_erase_flash_bank(FLASH_BANK1_OFFSET);
-		if (ret) {
-			SYS_LOG_ERR("flash_erase error %d", ret);
-			TC_END_RESULT(TC_FAIL);
-			return ret;
-		} else {
-			SYS_LOG_DBG("Flash bank (offset %x) erased"
-				    " successfully",
-				    FLASH_BANK1_OFFSET);
-		}
-		ret = fota_update_acid(&acid);
-		if (ret) {
-			TC_END_RESULT(TC_FAIL);
-			return ret;
-		}
+#if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
+	ret = hawkbit_init();
+#else
+	SYS_LOG_ERR("Unsupported device management backend");
+	ret = -EINVAL;
+#endif
+	if (ret) {
+		TC_END_RESULT(TC_FAIL);
+	} else {
+		TC_END_RESULT(TC_PASS);
 	}
 
-	TC_END_RESULT(TC_PASS);
-	return 0;
+	return ret;
 }
 
 /* Firmware OTA thread (Hawkbit) */

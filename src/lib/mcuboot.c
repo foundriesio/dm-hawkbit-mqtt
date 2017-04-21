@@ -116,46 +116,6 @@ void boot_trigger_ota(void)
 	flash_write_protection_set(flash_dev, true);
 }
 
-void boot_acid_read(struct boot_acid *boot_acid)
-{
-	flash_read(flash_dev, FLASH_STATE_OFFSET, boot_acid,
-					sizeof(*boot_acid));
-}
-
-/**
- * @brief Update an ACID of a given type on flash.
- *
- * @param type ACID type to update
- * @param acid New ACID value
- * @return 0 on success, negative on error.
- */
-int boot_acid_update(boot_acid_t type, uint32_t acid)
-{
-	struct boot_acid boot_acid;
-	int ret;
-
-	flash_read(flash_dev, FLASH_STATE_OFFSET, &boot_acid,
-					sizeof(boot_acid));
-	if (type == BOOT_ACID_UPDATE) {
-		boot_acid.update = acid;
-	} else {
-		boot_acid.current = acid;
-	}
-
-	flash_write_protection_set(flash_dev, false);
-	ret = flash_erase(flash_dev, FLASH_STATE_OFFSET, FLASH_STATE_SIZE);
-	flash_write_protection_set(flash_dev, true);
-	if (ret) {
-		return ret;
-	}
-
-	flash_write_protection_set(flash_dev, false);
-	ret = flash_write(flash_dev, FLASH_STATE_OFFSET, &boot_acid,
-			  sizeof(boot_acid));
-	flash_write_protection_set(flash_dev, true);
-	return ret;
-}
-
 int boot_erase_flash_bank(uint32_t bank_offset)
 {
 	int ret;
