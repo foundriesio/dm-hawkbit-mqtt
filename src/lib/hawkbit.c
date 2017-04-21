@@ -27,10 +27,11 @@
 
 #include "jsmn.h"
 #include "hawkbit.h"
-#include "tcp.h"
 #include "mcuboot.h"
-#include "device.h"
 #include "flash_block.h"
+/* TODO: fix these when the relevant headers are part of lib/ */
+#include "../device.h"
+#include "../tcp.h"
 
 
 /*
