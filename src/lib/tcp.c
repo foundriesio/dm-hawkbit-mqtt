@@ -21,8 +21,7 @@
 
 #include "tcp.h"
 #include "hawkbit.h"
-/* TODO fix when bluemix is part of lib/ */
-#include "../bluemix.h"
+#include "bluemix.h"
 
 #define SERVER_CONNECT_TIMEOUT		K_SECONDS(5)
 #define SERVER_CONNECT_MAX_WAIT_COUNT	2
