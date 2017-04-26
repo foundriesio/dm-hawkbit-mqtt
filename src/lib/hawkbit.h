@@ -14,8 +14,8 @@
 extern int poll_sleep;
 
 struct hawkbit_device_acid {
-	uint32_t current;
-	uint32_t update;
+	u32_t current;
+	u32_t update;
 };
 
 int hawkbit_init(void);

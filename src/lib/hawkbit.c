@@ -8,7 +8,7 @@
 #define SYS_LOG_LEVEL CONFIG_SYS_LOG_FOTA_LEVEL
 #include <logging/sys_log.h>
 
-#include <stdint.h>
+#include <zephyr/types.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -41,7 +41,7 @@
  * status
  *
  */
-uint8_t tcp_buf[TCP_RECV_BUF_SIZE];
+u8_t tcp_buf[TCP_RECV_BUF_SIZE];
 
 struct hawkbit_download {
 	size_t http_header_size;
@@ -117,7 +117,7 @@ static int jsoneq(const char *json, jsmntok_t *tok, const char *s)
 }
 
 static int json_parser(struct json_data_t *json, jsmn_parser *parser,
-		       jsmntok_t *tks, uint16_t num_tokens)
+		       jsmntok_t *tks, u16_t num_tokens)
 {
 	int ret = 0;
 
@@ -214,7 +214,7 @@ void hawkbit_device_acid_read(struct hawkbit_device_acid *device_acid)
  * @return 0 on success, negative on error.
  */
 static int hawkbit_device_acid_update(hawkbit_dev_acid_t type,
-				      uint32_t new_value)
+				      u32_t new_value)
 {
 	struct hawkbit_device_acid device_acid;
 	int ret;
@@ -245,7 +245,7 @@ int hawkbit_init(void)
 {
 	int ret = 0;
 	struct hawkbit_device_acid init_acid;
-	uint8_t boot_status;
+	u8_t boot_status;
 
 	/* Update boot status and acid */
 	hawkbit_device_acid_read(&init_acid);
@@ -286,7 +286,7 @@ static void hawkbit_header_cb(struct net_context *context,
 {
 	struct hawkbit_download *hbd = user_data;
 	struct net_buf *rx_buf;
-	uint8_t *ptr;
+	u8_t *ptr;
 	int len;
 	struct http_parser_settings http_settings;
 	struct http_download_t http_data = { 0 };
@@ -349,7 +349,7 @@ static void hawkbit_download_cb(struct net_context *context,
 {
 	struct hawkbit_download *hbd = user_data;
 	struct net_buf *rx_buf;
-	uint8_t *ptr;
+	u8_t *ptr;
 	int len, downloaded;
 
 	if (!buf) {
@@ -388,7 +388,7 @@ static void hawkbit_download_cb(struct net_context *context,
 	net_nbuf_unref(buf);
 }
 
-static int hawkbit_install_update(uint8_t *tcp_buffer, size_t size,
+static int hawkbit_install_update(u8_t *tcp_buffer, size_t size,
 				  const char *download_http,
 				  size_t file_size)
 {
@@ -509,7 +509,7 @@ error_cleanup:
 	return ret;
 }
 
-static int hawkbit_query(uint8_t *tcp_buffer, size_t size,
+static int hawkbit_query(u8_t *tcp_buffer, size_t size,
 			 struct json_data_t *json)
 {
 	struct http_parser_settings http_settings;
@@ -567,7 +567,7 @@ static int hawkbit_query(uint8_t *tcp_buffer, size_t size,
 	return 0;
 }
 
-static int hawkbit_report_config_data(uint8_t *tcp_buffer, size_t size)
+static int hawkbit_report_config_data(u8_t *tcp_buffer, size_t size)
 {
 	const struct product_id_t *product_id = product_id_get();
 	char *helper;
@@ -607,7 +607,7 @@ static int hawkbit_report_config_data(uint8_t *tcp_buffer, size_t size)
 }
 
 static int hawkbit_report_update_status(int acid,
-					uint8_t *tcp_buffer, size_t size,
+					u8_t *tcp_buffer, size_t size,
 					hawkbit_result_status_t status,
 					hawkbit_exec_status_t exec)
 {

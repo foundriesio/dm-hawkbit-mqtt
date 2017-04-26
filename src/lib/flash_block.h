@@ -42,7 +42,7 @@ extern "C" {
  */
 int flash_block_write(struct device *dev,
 		      off_t offset, int *bytes_written,
-		      uint8_t *data, int len,
+		      u8_t *data, int len,
 		      bool finished);
 
 #ifdef __cplusplus

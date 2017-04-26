@@ -59,6 +59,6 @@ boot_status_t boot_status_read(void);
 void boot_status_update(void);
 void boot_trigger_ota(void);
 
-int boot_erase_flash_bank(uint32_t bank_offset);
+int boot_erase_flash_bank(u32_t bank_offset);
 
 #endif	/* __FOTA_MCUBOOT_H__ */

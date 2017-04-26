@@ -38,9 +38,9 @@ const struct product_id_t *product_id_get(void)
 }
 
 #define HASH_MULTIPLIER		37
-static uint32_t hash32(char *str, int len)
+static u32_t hash32(char *str, int len)
 {
-	uint32_t h = 0;
+	u32_t h = 0;
 	int i;
 
 	for (i = 0; i < len; ++i) {
@@ -60,7 +60,7 @@ static int product_id_init(struct device *dev)
 
 	for (i = 0; i < DEVICE_ID_LENGTH; i++) {
 		sprintf(buffer + i*8, "%08x",
-			*(((uint32_t *)DEVICE_ID_BASE) + i));
+			*(((u32_t *)DEVICE_ID_BASE) + i));
 	}
 
 	product_id.number = hash32(buffer, DEVICE_ID_LENGTH*8);

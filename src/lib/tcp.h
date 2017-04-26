@@ -33,7 +33,7 @@ void tcp_cleanup(enum tcp_context_id id, bool put_net_context);
 int tcp_connect(enum tcp_context_id id);
 int tcp_send(enum tcp_context_id id, const unsigned char *buf, size_t size);
 int tcp_recv(enum tcp_context_id id, unsigned char *buf, size_t size,
-	     int32_t timeout);
+	     s32_t timeout);
 struct net_context *tcp_get_net_context(enum tcp_context_id id);
 struct k_sem *tcp_get_recv_wait_sem(enum tcp_context_id id);
 

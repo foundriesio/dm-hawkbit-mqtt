@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Linaro Limited
+ * Copyright (c) 2016-2017 Linaro Limited
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -69,7 +69,7 @@ static void set_bluetooth_led(bool state)
 #endif
 }
 
-static void connected(struct bt_conn *conn, uint8_t err)
+static void connected(struct bt_conn *conn, u8_t err)
 {
 	if (err) {
 		SYS_LOG_ERR("BT LE Connection failed: %u", err);
@@ -85,7 +85,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	}
 }
 
-static void disconnected(struct bt_conn *conn, uint8_t reason)
+static void disconnected(struct bt_conn *conn, u8_t reason)
 {
 	SYS_LOG_ERR("BT LE Disconnected (reason %u), rebooting!", reason);
 	set_bluetooth_led(0);
@@ -136,7 +136,7 @@ static int fota_init(void)
 static void fota_service(void)
 {
 #if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
-	uint32_t hawkbit_failures = 0;
+	u32_t hawkbit_failures = 0;
 	int ret;
 #endif
 
@@ -221,7 +221,7 @@ static void bluemix_service(void)
 {
 	static struct bluemix_ctx bluemix_context;
 	static int bluemix_inited = 0;
-	uint32_t bluemix_failures = 0;
+	u32_t bluemix_failures = 0;
 	struct sensor_value mcu_temp_value;
 	struct sensor_value offchip_temp_value;
 	int ret;
@@ -327,7 +327,7 @@ static void bluemix_service(void)
 
 void blink_led(void)
 {
-	uint32_t cnt = 0;
+	u32_t cnt = 0;
 	struct device *gpio;
 
 	gpio = device_get_binding(LED_GPIO_PORT);

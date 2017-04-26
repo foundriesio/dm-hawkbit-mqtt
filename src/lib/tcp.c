@@ -8,7 +8,7 @@
 #define SYS_LOG_LEVEL CONFIG_SYS_LOG_FOTA_LEVEL
 #include <logging/sys_log.h>
 
-#include <stdint.h>
+#include <zephyr/types.h>
 #include <stddef.h>
 #include <errno.h>
 #include <zephyr.h>
@@ -91,9 +91,9 @@ struct tcp_context {
 	struct net_context *net_ctx;
 	struct k_sem sem_recv_wait;
 	struct k_sem sem_recv_mutex;
-	uint8_t read_buf[TCP_RECV_BUF_SIZE];
-	uint16_t read_bytes;
-	uint16_t peer_port;
+	u8_t read_buf[TCP_RECV_BUF_SIZE];
+	u16_t read_bytes;
+	u16_t peer_port;
 };
 
 static struct tcp_context contexts[TCP_CTX_MAX];
@@ -127,7 +127,7 @@ static void tcp_received_cb(struct net_context *context,
 	ARG_UNUSED(context);
 	struct tcp_context *ctx = user_data;
 	struct net_buf *rx_buf;
-	uint8_t *ptr;
+	u8_t *ptr;
 	int len;
 
 	/* handle FIN packet */
@@ -350,7 +350,7 @@ static int tcp_send_context(struct tcp_context *ctx, const unsigned char *buf,
 		return -EIO;
 	}
 
-	rc = net_nbuf_append(send_buf, size, (uint8_t *) buf, K_FOREVER);
+	rc = net_nbuf_append(send_buf, size, (u8_t *) buf, K_FOREVER);
 	if (!rc) {
 		SYS_LOG_ERR("cannot write buf");
 		net_nbuf_unref(send_buf);
@@ -382,7 +382,7 @@ int tcp_send(enum tcp_context_id id, const unsigned char *buf, size_t size)
 }
 
 static int tcp_recv_context(struct tcp_context *ctx, unsigned char *buf,
-			    size_t size, int32_t timeout)
+			    size_t size, s32_t timeout)
 {
 	int rc;
 
@@ -417,7 +417,8 @@ static int tcp_recv_context(struct tcp_context *ctx, unsigned char *buf,
 	return rc;
 }
 
-int tcp_recv(enum tcp_context_id id, unsigned char *buf, size_t size, int32_t timeout)
+int tcp_recv(enum tcp_context_id id, unsigned char *buf, size_t size,
+	      s32_t timeout)
 {
 	if (invalid_id(id)) {
 		return -EINVAL;

@@ -8,7 +8,7 @@
 #define SYS_LOG_LEVEL CONFIG_SYS_LOG_FOTA_LEVEL
 #include <logging/sys_log.h>
 
-#include <stdint.h>
+#include <zephyr/types.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -31,14 +31,14 @@
 
 #define BLOCK_BUFFER_SIZE	512
 
-uint8_t flash_buf[BLOCK_BUFFER_SIZE];
-static uint16_t flash_bytes = 0;
+u8_t flash_buf[BLOCK_BUFFER_SIZE];
+static u16_t flash_bytes;
 
-extern uint8_t tcp_buf[TCP_RECV_BUF_SIZE];
+extern u8_t tcp_buf[TCP_RECV_BUF_SIZE];
 
 /* TODO: remove use of tcp_buf */
 static bool flash_block_verify(struct device *dev, off_t offset,
-			 uint8_t *data, int len)
+			 u8_t *data, int len)
 {
 	int i, rc;
 
@@ -68,7 +68,7 @@ static bool flash_block_verify(struct device *dev, off_t offset,
 /* buffer data into block writes */
 int flash_block_write(struct device *dev,
 		      off_t offset, int *bytes_written,
-		      uint8_t *data, int len,
+		      u8_t *data, int len,
 		      bool finished)
 {
 	int rc = 0;

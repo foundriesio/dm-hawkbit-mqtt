@@ -49,7 +49,7 @@ static inline struct bluemix_ctx* mqtt_to_bluemix(struct mqtt_ctx *mqtt)
 	return CONTAINER_OF(mqtt, struct bluemix_ctx, mqtt_ctx);
 }
 
-static inline int wait_for_mqtt(struct bluemix_ctx *ctx, int32_t timeout)
+static inline int wait_for_mqtt(struct bluemix_ctx *ctx, s32_t timeout)
 {
 	return k_sem_take(&ctx->reply_sem, timeout);
 }
@@ -67,14 +67,14 @@ static void disconnect_cb(struct mqtt_ctx *ctx)
 	k_sem_give(&mqtt_to_bluemix(ctx)->reply_sem);
 }
 
-static int publish_tx_cb(struct mqtt_ctx *ctx, uint16_t pkt_id,
+static int publish_tx_cb(struct mqtt_ctx *ctx, u16_t pkt_id,
 			 enum mqtt_packet type)
 {
 	return 0;
 }
 
 static int publish_rx_cb(struct mqtt_ctx *ctx, struct mqtt_publish_msg *msg,
-			 uint16_t pkt_id, enum mqtt_packet type)
+			 u16_t pkt_id, enum mqtt_packet type)
 {
 	struct bluemix_ctx *bm_ctx;
 
@@ -110,21 +110,21 @@ static int publish_rx_cb(struct mqtt_ctx *ctx, struct mqtt_publish_msg *msg,
 	return 0;
 }
 
-static int subscribe_cb(struct mqtt_ctx *ctx, uint16_t pkt_id,
-			uint8_t items, enum mqtt_qos qos[])
+static int subscribe_cb(struct mqtt_ctx *ctx, u16_t pkt_id,
+			u8_t items, enum mqtt_qos qos[])
 {
 	/* FIXME: validate this is the suback we were waiting for. */
 	k_sem_give(&mqtt_to_bluemix(ctx)->reply_sem);
 	return 0;
 }
 
-static int unsubscribe_cb(struct mqtt_ctx *ctx, uint16_t pkt_id)
+static int unsubscribe_cb(struct mqtt_ctx *ctx, u16_t pkt_id)
 {
 	SYS_LOG_DBG("MQTT unsubscribe CB");
 	return 0;
 }
 
-static void malformed_cb(struct mqtt_ctx *ctx, uint16_t pkt_type)
+static void malformed_cb(struct mqtt_ctx *ctx, u16_t pkt_type)
 {
 	SYS_LOG_DBG("MQTT malformed CB");
 }

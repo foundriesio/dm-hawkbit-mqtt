@@ -24,7 +24,7 @@
 static void tstamp_log_fn(const char *fmt, ...)
 {
 	va_list ap;
-	uint32_t up_ms = k_uptime_get_32();
+	u32_t up_ms = k_uptime_get_32();
 
 	printk("[%07u] ", up_ms);
 

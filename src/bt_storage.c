@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Linaro Limited
+ * Copyright (c) 2016-2017 Linaro Limited
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,7 +8,7 @@
 #define SYS_LOG_LEVEL SYS_LOG_LEVEL_DEBUG
 #include <logging/sys_log.h>
 
-#include <stdint.h>
+#include <zephyr/types.h>
 #include <stddef.h>
 #include <errno.h>
 #include <zephyr.h>
@@ -25,7 +25,7 @@
 /* Any by default, can change depending on the hardware implementation */
 static bt_addr_le_t bt_addr;
 
-static ssize_t storage_read(const bt_addr_le_t *addr, uint16_t key, void *data,
+static ssize_t storage_read(const bt_addr_le_t *addr, u16_t key, void *data,
 			       size_t length)
 {
 	if (addr) {
@@ -40,7 +40,7 @@ static ssize_t storage_read(const bt_addr_le_t *addr, uint16_t key, void *data,
 	return -EIO;
 }
 
-static ssize_t storage_write(const bt_addr_le_t *addr, uint16_t key,
+static ssize_t storage_write(const bt_addr_le_t *addr, u16_t key,
 				const void *data, size_t length)
 {
 	return -ENOSYS;
@@ -54,7 +54,7 @@ static ssize_t storage_clear(const bt_addr_le_t *addr)
 static void set_own_bt_addr(void)
 {
 	int i;
-	uint8_t tmp;
+	u8_t tmp;
 
 	/*
 	 * Generate a static BT addr using the unique product number.

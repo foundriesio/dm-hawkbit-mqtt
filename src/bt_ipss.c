@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Linaro Limited
+ * Copyright (c) 2016-2017 Linaro Limited
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -29,7 +29,7 @@
 
 #if !defined(CONFIG_BLUETOOTH_GATT_DYNAMIC_DB)
 static ssize_t read_name(struct bt_conn *conn, const struct bt_gatt_attr *attr,
-			 void *buf, uint16_t len, uint16_t offset)
+			 void *buf, u16_t len, u16_t offset)
 {
 	const char *name = attr->user_data;
 
@@ -39,16 +39,16 @@ static ssize_t read_name(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 
 static ssize_t read_appearance(struct bt_conn *conn,
 			       const struct bt_gatt_attr *attr, void *buf,
-			       uint16_t len, uint16_t offset)
+			       u16_t len, u16_t offset)
 {
-	uint16_t appearance = sys_cpu_to_le16(UNKNOWN_APPEARANCE);
+	u16_t appearance = sys_cpu_to_le16(UNKNOWN_APPEARANCE);
 
 	return bt_gatt_attr_read(conn, attr, buf, len, offset, &appearance,
 				 sizeof(appearance));
 }
 
 static ssize_t read_model(struct bt_conn *conn, const struct bt_gatt_attr *attr,
-			  void *buf, uint16_t len, uint16_t offset)
+			  void *buf, u16_t len, u16_t offset)
 {
 	const char *value = attr->user_data;
 
@@ -57,7 +57,7 @@ static ssize_t read_model(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 }
 
 static ssize_t read_manuf(struct bt_conn *conn, const struct bt_gatt_attr *attr,
-			  void *buf, uint16_t len, uint16_t offset)
+			  void *buf, u16_t len, u16_t offset)
 {
 	const char *value = attr->user_data;
 
@@ -111,7 +111,7 @@ void ipss_init(struct bt_conn_cb *conn_callbacks)
 }
 
 /* local copy of set_ad() in subsys/bluetooth/host/hci_core */
-static int ipss_set_ad(uint16_t hci_op, const struct bt_data *ad, size_t ad_len)
+static int ipss_set_ad(u16_t hci_op, const struct bt_data *ad, size_t ad_len)
 {
 	struct bt_hci_cp_le_set_adv_data *set_data;
 	struct net_buf *buf;

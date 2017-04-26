@@ -9,7 +9,7 @@
 
 struct product_id_t {
 	const char *name;
-	uint32_t number;
+	u32_t number;
 };
 
 /**
