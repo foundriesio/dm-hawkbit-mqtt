@@ -106,6 +106,11 @@ static inline int invalid_id(enum tcp_context_id id)
 
 static void tcp_cleanup_context(struct tcp_context *ctx, bool put_net_context)
 {
+	if (!ctx) {
+		SYS_LOG_ERR("NULL tcp_context!");
+		return;
+	}
+
 	if (put_net_context && ctx->net_ctx) {
 		net_context_put(ctx->net_ctx);
 	}
