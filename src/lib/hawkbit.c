@@ -20,7 +20,7 @@
 
 #include <bluetooth/bluetooth.h>
 
-#include <net/nbuf.h>
+#include <net/net_pkt.h>
 
 #include <soc.h>
 #include <net/http_parser.h>
@@ -281,7 +281,7 @@ int hawkbit_init(void)
 }
 
 static void hawkbit_header_cb(struct net_context *context,
-			      struct net_buf *buf,
+			      struct net_pkt *pkt,
 			      int status, void *user_data)
 {
 	struct hawkbit_download *hbd = user_data;
@@ -292,16 +292,16 @@ static void hawkbit_header_cb(struct net_context *context,
 	struct http_download_t http_data = { 0 };
 	struct http_parser parser;
 
-	if (!buf) {
+	if (!pkt) {
 		SYS_LOG_ERR("Download: EARLY end of buffer");
 		hbd->header_status = -1;
 		k_sem_give(tcp_get_recv_wait_sem(TCP_CTX_HAWKBIT));
 		return;
 	}
 
-	if (net_nbuf_appdatalen(buf) > 0) {
-		rx_buf = buf->frags;
-		ptr = net_nbuf_appdata(buf);
+	if (net_pkt_appdatalen(pkt) > 0) {
+		rx_buf = pkt->frags;
+		ptr = net_pkt_appdata(pkt);
 		len = rx_buf->len - (ptr - rx_buf->data);
 
 		while (rx_buf) {
@@ -320,7 +320,7 @@ static void hawkbit_header_cb(struct net_context *context,
 		}
 	}
 
-	net_nbuf_unref(buf);
+	net_pkt_unref(pkt);
 
 	http_parser_init(&parser, HTTP_RESPONSE);
 	http_parser_settings_init(&http_settings);
@@ -344,7 +344,7 @@ static void hawkbit_header_cb(struct net_context *context,
 }
 
 static void hawkbit_download_cb(struct net_context *context,
-				struct net_buf *buf,
+				struct net_pkt *pkt,
 				int status, void *user_data)
 {
 	struct hawkbit_download *hbd = user_data;
@@ -352,15 +352,15 @@ static void hawkbit_download_cb(struct net_context *context,
 	u8_t *ptr;
 	int len, downloaded;
 
-	if (!buf) {
+	if (!pkt) {
 		/* handle end of stream */
 		k_sem_give(tcp_get_recv_wait_sem(TCP_CTX_HAWKBIT));
 		hbd->download_status = 1;
 		return;
 	}
 
-	rx_buf = buf->frags;
-	ptr = net_nbuf_appdata(buf);
+	rx_buf = pkt->frags;
+	ptr = net_pkt_appdata(pkt);
 	len = rx_buf->len - (ptr - rx_buf->data);
 
 	while (rx_buf && hbd->download_status == 0) {
@@ -385,7 +385,7 @@ static void hawkbit_download_cb(struct net_context *context,
 		ptr = rx_buf->data;
 		len = rx_buf->len;
 	}
-	net_nbuf_unref(buf);
+	net_pkt_unref(pkt);
 }
 
 static int hawkbit_install_update(u8_t *tcp_buffer, size_t size,

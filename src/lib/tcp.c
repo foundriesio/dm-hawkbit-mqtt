@@ -16,7 +16,7 @@
 
 #include <net/net_core.h>
 #include <net/net_context.h>
-#include <net/nbuf.h>
+#include <net/net_pkt.h>
 #include <net/net_if.h>
 
 #include "tcp.h"
@@ -69,11 +69,11 @@ BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_PEER_IPV4_ADDR) > 1,
 #define PEER_IPADDR		CONFIG_NET_APP_PEER_IPV4_ADDR
 #endif
 
-#if defined(CONFIG_NET_CONTEXT_NBUF_POOL)
-NET_NBUF_TX_POOL_DEFINE(fota_tx_tcp, 15);
-NET_NBUF_DATA_POOL_DEFINE(fota_data_tcp, 30);
+#if defined(CONFIG_NET_CONTEXT_NET_PKT_POOL)
+NET_PKT_TX_SLAB_DEFINE(fota_tx_tcp, 15);
+NET_PKT_DATA_POOL_DEFINE(fota_data_tcp, 30);
 
-static struct net_buf_pool *tx_tcp_pool(void)
+static struct k_mem_slab *tx_tcp_slab(void)
 {
 	return &fota_tx_tcp;
 }
@@ -122,7 +122,7 @@ void tcp_cleanup(enum tcp_context_id id, bool put_net_context)
 }
 
 static void tcp_received_cb(struct net_context *context,
-			    struct net_buf *buf, int status, void *user_data)
+			    struct net_pkt *pkt, int status, void *user_data)
 {
 	ARG_UNUSED(context);
 	struct tcp_context *ctx = user_data;
@@ -131,7 +131,7 @@ static void tcp_received_cb(struct net_context *context,
 	int len;
 
 	/* handle FIN packet */
-	if (!buf) {
+	if (!pkt) {
 		SYS_LOG_DBG("FIN received, closing network context");
 		/* clear out our reference to the network connection */
 		tcp_cleanup_context(ctx, false);
@@ -142,20 +142,21 @@ static void tcp_received_cb(struct net_context *context,
 
 		/*
 		 * TODO: if overflow, return an error and save
-		 * the nbuf for later processing
+		 * the net_pkt for later processing
 		 */
-		if (ctx->read_bytes + net_nbuf_appdatalen(buf) >= TCP_RECV_BUF_SIZE) {
+		if (net_pkt_appdatalen(pkt) >=
+				TCP_RECV_BUF_SIZE - ctx->read_bytes) {
 			SYS_LOG_ERR("ERROR buffer overflow!"
 				    " (read(%u)+bufflen(%u) >= %u)",
-				    ctx->read_bytes, net_nbuf_appdatalen(buf),
+				    ctx->read_bytes, net_pkt_appdatalen(pkt),
 				    TCP_RECV_BUF_SIZE);
-			net_nbuf_unref(buf);
+			net_pkt_unref(pkt);
 			tcp_cleanup_context(ctx, true);
 			k_sem_give(&ctx->sem_recv_wait);
 			return;
 		} else {
-			rx_buf = buf->frags;
-			ptr = net_nbuf_appdata(buf);
+			rx_buf = pkt->frags;
+			ptr = net_pkt_appdata(pkt);
 			len = rx_buf->len - (ptr - rx_buf->data);
 
 			while (rx_buf) {
@@ -170,7 +171,7 @@ static void tcp_received_cb(struct net_context *context,
 			}
 		}
 		ctx->read_buf[ctx->read_bytes] = 0;
-		net_nbuf_unref(buf);
+		net_pkt_unref(pkt);
 		k_sem_give(&ctx->sem_recv_mutex);
 	}
 }
@@ -281,8 +282,9 @@ static int tcp_connect_context(struct tcp_context *ctx)
  * extra save/restore buffers to be allocated during compress/uncompress
  * operations.
  */
-#if defined(CONFIG_NET_CONTEXT_NBUF_POOL)
-		net_context_setup_pools(ctx->net_ctx, tx_tcp_pool, data_tcp_pool);
+#if defined(CONFIG_NET_CONTEXT_NET_PKT_POOL)
+		net_context_setup_pools(ctx->net_ctx, tx_tcp_slab,
+					data_tcp_pool);
 #endif
 
 		rc = net_context_bind(ctx->net_ctx, &my_addr, NET_SIN_SIZE);
@@ -336,7 +338,7 @@ int tcp_connect(enum tcp_context_id id)
 static int tcp_send_context(struct tcp_context *ctx, const unsigned char *buf,
 			    size_t size)
 {
-	struct net_buf *send_buf;
+	struct net_pkt *send_pkt;
 	int rc, len;
 
 	/* make sure we're connected */
@@ -344,25 +346,25 @@ static int tcp_send_context(struct tcp_context *ctx, const unsigned char *buf,
 	if (rc < 0)
 		return rc;
 
-	send_buf = net_nbuf_get_tx(ctx->net_ctx, K_FOREVER);
-	if (!send_buf) {
-		SYS_LOG_ERR("cannot create buf");
+	send_pkt = net_pkt_get_tx(ctx->net_ctx, K_FOREVER);
+	if (!send_pkt) {
+		SYS_LOG_ERR("cannot create net_pkt");
 		return -EIO;
 	}
 
-	rc = net_nbuf_append(send_buf, size, (u8_t *) buf, K_FOREVER);
+	rc = net_pkt_append(send_pkt, size, (u8_t *) buf, K_FOREVER);
 	if (!rc) {
 		SYS_LOG_ERR("cannot write buf");
-		net_nbuf_unref(send_buf);
+		net_pkt_unref(send_pkt);
 		return -EIO;
 	}
 
-	len = net_buf_frags_len(send_buf);
+	len = net_pkt_get_len(send_pkt);
 
-	rc = net_context_send(send_buf, NULL, TCP_TX_TIMEOUT, NULL, NULL);
+	rc = net_context_send(send_pkt, NULL, TCP_TX_TIMEOUT, NULL, NULL);
 	if (rc < 0) {
 		SYS_LOG_ERR("Cannot send data to peer (%d)", rc);
-		net_nbuf_unref(send_buf);
+		net_pkt_unref(send_pkt);
 
 		if (rc == -ESHUTDOWN)
 			tcp_cleanup_context(ctx, true);

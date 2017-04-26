@@ -234,9 +234,9 @@ int bluemix_init(struct bluemix_ctx *ctx)
 	 *
 	 * This is part of a work-around for problems with the Zephyr
 	 * MQTT stack. That stack doesn't correctly parse multiple
-	 * MQTT packets within a single struct net_buf. Working around
+	 * MQTT packets within a single struct net_pkt. Working around
 	 * that implies trying to never receive multiple MQTT packets
-	 * in the same net_buf.
+	 * in the same net_pkt.
 	 *
 	 * In order to avoid having to worry about scheduling PINGREQ
 	 * packets (whose PINGRESP packets might come at an
