@@ -16,7 +16,6 @@
 #include <zephyr.h>
 
 #include <net/net_context.h>
-#include <net/nbuf.h>
 
 #include <string.h>
 #include <errno.h>
