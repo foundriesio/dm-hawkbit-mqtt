@@ -8,7 +8,6 @@
 #define SYS_LOG_LEVEL SYS_LOG_LEVEL_DEBUG
 #include <logging/sys_log.h>
 
-#include <bluetooth/conn.h>
 #include <misc/stack.h>
 #include <gpio.h>
 #include <sensor.h>
@@ -18,8 +17,11 @@
 
 /* Local helpers and functions */
 #include "tstamp_log.h"
+#if defined(CONFIG_BLUETOOTH)
+#include <bluetooth/conn.h>
 #include "bt_storage.h"
 #include "bt_ipss.h"
+#endif
 #include "mcuboot.h"
 #if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
 #include "hawkbit.h"
