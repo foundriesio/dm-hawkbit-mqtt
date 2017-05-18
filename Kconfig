@@ -91,6 +91,7 @@ choice
 
 config FOTA_DM_BACKEND_HAWKBIT
 	bool "Hawkbit Device Management"
+	depends on NET_TCP
 	help
 	  hawkBit is a domain independent back-end framework for rolling
 	  out software updates to constrained edge devices as well as more

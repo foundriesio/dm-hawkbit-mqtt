@@ -28,7 +28,9 @@
 #include "hawkbit.h"
 #endif
 #include "bluemix.h"
+#if defined(CONFIG_NET_TCP)
 #include "tcp.h"
+#endif
 
 /*
  * GPIOs. These can be customized by device if needed.
@@ -99,20 +101,6 @@ static struct bt_conn_cb conn_callbacks = {
 	.disconnected = disconnected,
 };
 #endif
-
-static int start_tcp(void)
-{
-	int ret;
-
-	TC_PRINT("Initializing TCP\n");
-	ret = tcp_init();
-	if (ret) {
-		TC_END_RESULT(TC_FAIL);
-	} else {
-		TC_END_RESULT(TC_PASS);
-	}
-	return ret;
-}
 
 static int fota_init(void)
 {
@@ -387,11 +375,15 @@ void main(void)
 	}
 #endif
 
-	err = start_tcp();
-	if (err) {
+#if defined(CONFIG_NET_TCP)
+	TC_PRINT("Initializing TCP\n");
+	if (tcp_init()) {
+		_TC_END_RESULT(TC_FAIL, "tcp_init");
 		TC_END_REPORT(TC_FAIL);
 		return;
 	}
+	_TC_END_RESULT(TC_PASS, "tcp_init");
+#endif
 
 	err = fota_init();
 	if (err) {
