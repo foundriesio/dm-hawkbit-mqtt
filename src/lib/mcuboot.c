@@ -138,4 +138,4 @@ static int boot_init(struct device *dev)
 	return 0;
 }
 
-SYS_INIT(boot_init, APPLICATION, 99);
+SYS_INIT(boot_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);

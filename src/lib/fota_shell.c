@@ -80,4 +80,4 @@ static int fota_shell_init(struct device *dev)
 	return 0;
 }
 
-SYS_INIT(fota_shell_init, APPLICATION, 99);
+SYS_INIT(fota_shell_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
