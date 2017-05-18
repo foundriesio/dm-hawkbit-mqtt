@@ -69,8 +69,16 @@ config SYS_LOG_FOTA_LEVEL
 	  - 3 INFO: write SYS_LOG_INF in addition to previous levels
 	  - 4 DEBUG: write SYS_LOG_DBG in addition to previous levels
 
+config FOTA_BLUEMIX
+	bool "Enable exchanging data with IBM Bluemix via MQTT"
+	depends on NET_TCP
+	default n
+	help
+	  This option adds logic for exchanging MQTT/Bluemix data
+
 config FOTA_BLUEMIX_ORG
 	string "Bluemix organization code"
+	depends on FOTA_BLUEMIX
 	default "mstsez"
 	help
 	  Enter IBM Bluemix organization code for MQTT publish / subscribe

@@ -78,8 +78,7 @@ struct bluemix_ctx {
 	struct k_sem reply_sem;
 };
 
-int bluemix_init(struct bluemix_ctx *ctx);
-int bluemix_fini(struct bluemix_ctx *ctx);
+int bluemix_init(void);
 
 /**
  * @brief Publish device status reading in JSON format.

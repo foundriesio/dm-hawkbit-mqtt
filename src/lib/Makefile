@@ -5,4 +5,4 @@ obj-$(CONFIG_FOTA_CONSOLE_SHELL) += fota_shell.o
 obj-y += mcuboot.o
 obj-y += product_id.o
 obj-$(CONFIG_NET_TCP) += tcp.o
-obj-y += bluemix.o
+obj-$(CONFIG_FOTA_BLUEMIX) += bluemix.o
