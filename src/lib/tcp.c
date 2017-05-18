@@ -227,6 +227,7 @@ int tcp_init(void)
 	for (i = 0; i < TCP_CTX_MAX; i++) {
 		k_sem_init(&contexts[i].sem_recv_wait, 0, 1);
 		k_sem_init(&contexts[i].sem_recv_mutex, 1, 1);
+		contexts[i].read_bytes = 0;
 	}
 #if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
 	contexts[TCP_CTX_HAWKBIT].peer_port = HAWKBIT_PORT;
