@@ -1,5 +1,5 @@
 BOARD ?= nrf52_pca10040
-CONF_FILE = prj.conf
+CONF_FILE ?= prj.conf
 CONF_FILE += $(wildcard local.conf) \
 		$(wildcard boards/$(BOARD).conf) \
 		$(wildcard boards/$(BOARD)-local.conf)
