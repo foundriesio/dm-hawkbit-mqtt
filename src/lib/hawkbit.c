@@ -17,6 +17,7 @@
 #include <flash.h>
 #include <zephyr.h>
 #include <misc/reboot.h>
+#include <misc/stack.h>
 
 #include <bluetooth/bluetooth.h>
 
@@ -31,6 +32,8 @@
 #include "flash_block.h"
 #include "product_id.h"
 #include "tcp.h"
+
+#define HAWKBIT_MAX_SERVER_FAIL	5
 
 /*
  * TODO:
@@ -90,6 +93,11 @@ typedef enum {
 } hawkbit_dev_acid_t;
 
 #define HAWKBIT_RX_TIMEOUT	K_SECONDS(3)
+
+#define HAWKBIT_STACK_SIZE 3840
+static char hawkbit_thread_stack[HAWKBIT_STACK_SIZE];
+
+int poll_sleep = K_SECONDS(30);
 
 /* Utils */
 static int atoi_n(const char *s, int len)
@@ -241,7 +249,7 @@ static int hawkbit_device_acid_update(hawkbit_dev_acid_t type,
 	return ret;
 }
 
-int hawkbit_init(void)
+static int hawkbit_start(void)
 {
 	int ret = 0;
 	struct hawkbit_device_acid init_acid;
@@ -958,4 +966,61 @@ int hawkbit_ddi_poll(void)
 	sys_reboot(0);
 
 	return 0;
+}
+
+/* Firmware OTA thread (Hawkbit) */
+static void hawkbit_service(void)
+{
+	u32_t hawkbit_failures = 0;
+	int ret;
+
+	SYS_LOG_INF("Starting FOTA Service Thread");
+
+	do {
+		k_sleep(poll_sleep);
+#if defined(CONFIG_BLUETOOTH)
+		if (!bt_connection_state) {
+			SYS_LOG_DBG("No BT LE connection");
+			continue;
+		}
+#endif
+
+		tcp_interface_lock();
+
+		ret = hawkbit_ddi_poll();
+		if (ret < 0) {
+			hawkbit_failures++;
+			if (hawkbit_failures == HAWKBIT_MAX_SERVER_FAIL) {
+				SYS_LOG_ERR("Too many unsuccessful poll"
+					    " attempts, rebooting!");
+				sys_reboot(0);
+			}
+		} else {
+			/* restart the failed attempt counter */
+			hawkbit_failures = 0;
+		}
+
+		tcp_interface_unlock();
+
+		stack_analyze("Hawkbit Thread", hawkbit_thread_stack,
+			      HAWKBIT_STACK_SIZE);
+	} while (1);
+}
+
+int hawkbit_init(void)
+{
+	int ret;
+
+	ret = hawkbit_start();
+	if (ret) {
+		SYS_LOG_ERR("Hawkbit Client initialization generated "
+			    "an error: %d", ret);
+		return ret;
+	}
+
+	k_thread_spawn(&hawkbit_thread_stack[0], HAWKBIT_STACK_SIZE,
+			(k_thread_entry_t) hawkbit_service,
+			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
+
+	return ret;
 }

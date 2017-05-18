@@ -44,11 +44,6 @@
 #define GPIO_DRV_BT	BT_GPIO_PORT
 #endif
 
-#define FOTA_STACK_SIZE 3840
-char fota_thread_stack[FOTA_STACK_SIZE];
-
-#define MAX_SERVER_FAIL	5
-int poll_sleep = K_SECONDS(30);
 struct device *flash_dev;
 
 #if defined(CONFIG_BLUETOOTH)
@@ -94,70 +89,6 @@ static struct bt_conn_cb conn_callbacks = {
 	.disconnected = disconnected,
 };
 #endif
-
-static int fota_init(void)
-{
-	int ret;
-
-	TC_PRINT("Initializing FOTA backend\n");
-#if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
-	ret = hawkbit_init();
-#else
-	SYS_LOG_ERR("Unsupported device management backend");
-	ret = -EINVAL;
-#endif
-	if (ret) {
-		TC_END_RESULT(TC_FAIL);
-	} else {
-		TC_END_RESULT(TC_PASS);
-	}
-
-	return ret;
-}
-
-/* Firmware OTA thread (Hawkbit) */
-static void fota_service(void)
-{
-#if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
-	u32_t hawkbit_failures = 0;
-	int ret;
-#endif
-
-	SYS_LOG_INF("Starting FOTA Service Thread");
-
-	do {
-		k_sleep(poll_sleep);
-#if defined(CONFIG_BLUETOOTH)
-		if (!bt_connection_state) {
-			SYS_LOG_DBG("No BT LE connection");
-			continue;
-		}
-#endif
-
-		tcp_interface_lock();
-
-#if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
-		ret = hawkbit_ddi_poll();
-		if (ret < 0) {
-			hawkbit_failures++;
-			if (hawkbit_failures == MAX_SERVER_FAIL) {
-				SYS_LOG_ERR("Too many unsuccessful poll"
-					    " attempts, rebooting!");
-				sys_reboot(0);
-			}
-		} else {
-			/* restart the failed attempt counter */
-			hawkbit_failures = 0;
-		}
-#else
-		SYS_LOG_ERR("Unsupported device management backend");
-#endif /* CONFIG_FOTA_DM_BACKEND_HAWKBIT */
-
-		tcp_interface_unlock();
-
-		stack_analyze("FOTA Thread", fota_thread_stack, FOTA_STACK_SIZE);
-	} while (1);
-}
 
 void blink_led(void)
 {
@@ -229,16 +160,15 @@ void main(void)
 	_TC_END_RESULT(TC_PASS, "tcp_init");
 #endif
 
-	err = fota_init();
-	if (err) {
+#if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
+	TC_PRINT("Initializing Hawkbit backend\n");
+	if (hawkbit_init()) {
+		_TC_END_RESULT(TC_FAIL, "hawkbit_init");
 		TC_END_REPORT(TC_FAIL);
- 		return;
+		return;
 	}
-
-	TC_PRINT("Starting the FOTA Service\n");
-	k_thread_spawn(&fota_thread_stack[0], FOTA_STACK_SIZE,
-			(k_thread_entry_t) fota_service,
-			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
+	_TC_END_RESULT(TC_PASS, "hawkbit_init");
+#endif
 
 #if defined(CONFIG_FOTA_BLUEMIX)
 	TC_PRINT("Initializing Bluemix Client service\n");
