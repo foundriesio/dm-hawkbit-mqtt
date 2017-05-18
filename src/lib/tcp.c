@@ -131,9 +131,7 @@ static void tcp_received_cb(struct net_context *context,
 {
 	ARG_UNUSED(context);
 	struct tcp_context *ctx = user_data;
-	struct net_buf *rx_buf;
-	u8_t *ptr;
-	int len;
+	u16_t pos = 0;
 
 	/* handle FIN packet */
 	if (!pkt) {
@@ -159,22 +157,14 @@ static void tcp_received_cb(struct net_context *context,
 			tcp_cleanup_context(ctx, true);
 			k_sem_give(&ctx->sem_recv_wait);
 			return;
-		} else {
-			rx_buf = pkt->frags;
-			ptr = net_pkt_appdata(pkt);
-			len = rx_buf->len - (ptr - rx_buf->data);
-
-			while (rx_buf) {
-				memcpy(ctx->read_buf + ctx->read_bytes, ptr, len);
-				ctx->read_bytes += len;
-				rx_buf = rx_buf->frags;
-				if (!rx_buf) {
-					break;
-				}
-				ptr = rx_buf->data;
-				len = rx_buf->len;
-			}
 		}
+
+		pos = net_pkt_appdata(pkt) - net_pkt_ip_data(pkt);
+		if (!net_frag_read(pkt->frags, pos, &pos,
+				   net_pkt_appdatalen(pkt),
+				   ctx->read_buf + ctx->read_bytes))
+			ctx->read_bytes += net_pkt_appdatalen(pkt);
+
 		ctx->read_buf[ctx->read_bytes] = 0;
 		net_pkt_unref(pkt);
 		k_sem_give(&ctx->sem_recv_mutex);
