@@ -199,20 +199,18 @@ int tcp_init(void)
 
 	/* Add delays so DHCP can assign IP */
 	/* TODO: add a timeout/retry */
-	SYS_LOG_INF("Waiting for DHCP ");
+	SYS_LOG_INF("Waiting for DHCP");
 	do {
-		SYS_LOG_INF(".");
 		k_sleep(K_SECONDS(1));
 	} while (net_is_ipv4_addr_unspecified(&iface->dhcpv4.requested_ip));
-	SYS_LOG_INF(" Done!");
+	SYS_LOG_INF("Done!");
 
 	/* TODO: add a timeout */
-	SYS_LOG_INF("Waiting for IP assignment ");
+	SYS_LOG_INF("Waiting for IP assignment");
 	do {
-		SYS_LOG_INF(".");
 		k_sleep(K_SECONDS(1));
 	} while (!net_is_my_ipv4_addr(&iface->dhcpv4.requested_ip));
-	SYS_LOG_INF(" Done!");
+	SYS_LOG_INF("Done!");
 
 	net_ipaddr_copy(&NET_SIN_ADDR(&client_addr),
 			&iface->dhcpv4.requested_ip);
