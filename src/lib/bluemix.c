@@ -51,6 +51,7 @@
 
 #define BLUEMIX_STACK_SIZE 1024
 static char bluemix_thread_stack[BLUEMIX_STACK_SIZE];
+static struct k_thread bluemix_thread_data;
 
 int bluemix_sleep = K_SECONDS(3);
 
@@ -510,8 +511,8 @@ int bluemix_init(void)
 		return ret;
 	}
 
-	k_thread_spawn(&bluemix_thread_stack[0], BLUEMIX_STACK_SIZE,
-			(k_thread_entry_t) bluemix_service,
+	k_thread_create(&bluemix_thread_data, &bluemix_thread_stack[0],
+			BLUEMIX_STACK_SIZE, (k_thread_entry_t) bluemix_service,
 			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
 
 #if defined(CONFIG_NET_MGMT_EVENT)
