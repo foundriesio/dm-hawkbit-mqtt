@@ -108,7 +108,9 @@ void blink_led(void)
 
 void main(void)
 {
+#if defined(CONFIG_BLUETOOTH)
 	int err;
+#endif
 
 	tstamp_hook_install();
 
