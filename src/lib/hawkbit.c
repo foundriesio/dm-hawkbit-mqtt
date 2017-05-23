@@ -18,10 +18,9 @@
 #include <zephyr.h>
 #include <misc/reboot.h>
 #include <misc/stack.h>
-
-#include <bluetooth/bluetooth.h>
-
 #include <net/net_pkt.h>
+#include <net/net_event.h>
+#include <net/net_mgmt.h>
 
 #include <soc.h>
 #include <net/http_parser.h>
@@ -98,6 +97,10 @@ typedef enum {
 static char hawkbit_thread_stack[HAWKBIT_STACK_SIZE];
 
 int poll_sleep = K_SECONDS(30);
+static bool connection_ready;
+#if defined(CONFIG_NET_MGMT_EVENT)
+static struct net_mgmt_event_callback cb;
+#endif
 
 /* Utils */
 static int atoi_n(const char *s, int len)
@@ -978,12 +981,11 @@ static void hawkbit_service(void)
 
 	do {
 		k_sleep(poll_sleep);
-#if defined(CONFIG_BLUETOOTH)
-		if (!bt_connection_state) {
-			SYS_LOG_DBG("No BT LE connection");
+
+		if (!connection_ready) {
+			SYS_LOG_DBG("Network interface is not ready");
 			continue;
 		}
-#endif
 
 		tcp_interface_lock();
 
@@ -1007,8 +1009,15 @@ static void hawkbit_service(void)
 	} while (1);
 }
 
+static void event_iface_up(struct net_mgmt_event_callback *cb,
+			   u32_t mgmt_event, struct net_if *iface)
+{
+	connection_ready = true;
+}
+
 int hawkbit_init(void)
 {
+	struct net_if *iface = net_if_get_default();
 	int ret;
 
 	ret = hawkbit_start();
@@ -1021,6 +1030,18 @@ int hawkbit_init(void)
 	k_thread_spawn(&hawkbit_thread_stack[0], HAWKBIT_STACK_SIZE,
 			(k_thread_entry_t) hawkbit_service,
 			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
+
+#if defined(CONFIG_NET_MGMT_EVENT)
+	/* Subscribe to NET_IF_UP if interface is not ready */
+	if (!atomic_test_bit(iface->flags, NET_IF_UP)) {
+		net_mgmt_init_event_callback(&cb, event_iface_up,
+					     NET_EVENT_IF_UP);
+		net_mgmt_add_event_callback(&cb);
+		return ret;
+	}
+#endif
+
+	event_iface_up(NULL, NET_EVENT_IF_UP, iface);
 
 	return ret;
 }
