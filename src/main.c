@@ -47,8 +47,6 @@
 struct device *flash_dev;
 
 #if defined(CONFIG_BLUETOOTH)
-static bool bt_connection_state = false;
-
 /* BT LE Connect/Disconnect callbacks */
 static void set_bluetooth_led(bool state)
 {
@@ -67,7 +65,6 @@ static void connected(struct bt_conn *conn, u8_t err)
 		SYS_LOG_ERR("BT LE Connection failed: %u", err);
 	} else {
 		SYS_LOG_INF("BT LE Connected");
-		bt_connection_state = true;
 		set_bluetooth_led(1);
 		err = ipss_set_connected();
 		if (err) {
