@@ -15,14 +15,15 @@
 
 #include <zephyr.h>
 
-#include <net/net_context.h>
-
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <misc/stack.h>
 #include <misc/reboot.h>
+#include <net/net_context.h>
+#include <net/net_event.h>
+#include <net/net_mgmt.h>
 #include <sensor.h>
 
 #include "product_id.h"
@@ -57,6 +58,11 @@ int bluemix_sleep = K_SECONDS(3);
 #define GENERIC_OFFCHIP_TEMP_SENSOR_DEVICE "fota-offchip-temp"
 struct device *mcu_temp_sensor_dev;
 struct device *offchip_temp_sensor_dev;
+
+static bool connection_ready;
+#if defined(CONFIG_NET_MGMT_EVENT)
+static struct net_mgmt_event_callback cb;
+#endif
 
 static inline struct bluemix_ctx* mqtt_to_bluemix(struct mqtt_ctx *mqtt)
 {
@@ -373,12 +379,11 @@ static void bluemix_service(void)
 
 	while (bluemix_failures < BLUEMIX_MAX_SERVER_FAIL) {
 		k_sleep(bluemix_sleep);
-#if defined(CONFIG_BLUETOOTH)
-		if (!bt_connection_state) {
-			SYS_LOG_DBG("No BT LE connection");
+
+		if (!connection_ready) {
+			SYS_LOG_DBG("Network interface is not ready");
 			continue;
 		}
-#endif
 
 		tcp_interface_lock();
 
@@ -487,8 +492,15 @@ static int temp_init(void)
 	return 0;
 }
 
+static void event_iface_up(struct net_mgmt_event_callback *cb,
+			   u32_t mgmt_event, struct net_if *iface)
+{
+	connection_ready = true;
+}
+
 int bluemix_init(void)
 {
+	struct net_if *iface = net_if_get_default();
 	int ret = 0;
 
 	ret = temp_init();
@@ -501,6 +513,18 @@ int bluemix_init(void)
 	k_thread_spawn(&bluemix_thread_stack[0], BLUEMIX_STACK_SIZE,
 			(k_thread_entry_t) bluemix_service,
 			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
+
+#if defined(CONFIG_NET_MGMT_EVENT)
+	/* Subscribe to NET_IF_UP if interface is not ready */
+	if (!atomic_test_bit(iface->flags, NET_IF_UP)) {
+		net_mgmt_init_event_callback(&cb, event_iface_up,
+					     NET_EVENT_IF_UP);
+		net_mgmt_add_event_callback(&cb);
+		return ret;
+	}
+#endif
+
+	event_iface_up(NULL, NET_EVENT_IF_UP, iface);
 
 	return ret;
 }
