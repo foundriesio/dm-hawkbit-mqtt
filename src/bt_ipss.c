@@ -17,8 +17,6 @@
 #include <bluetooth/uuid.h>
 #include <bluetooth/gatt.h>
 
-#include <tc_util.h>
-
 #include "bt_ipss.h"
 
 #define DEVICE_NAME "Linaro IPSP node"
@@ -107,7 +105,6 @@ void ipss_init(struct bt_conn_cb *conn_callbacks)
 {
 	bt_gatt_register(attrs, ARRAY_SIZE(attrs));
 	bt_conn_cb_register(conn_callbacks);
-	TC_END_RESULT(TC_PASS);
 }
 
 /* local copy of set_ad() in subsys/bluetooth/host/hci_core */
@@ -167,10 +164,6 @@ int ipss_advertise(void)
 
 	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad),
 			      sd, ARRAY_SIZE(sd));
-	if (err) {
-		TC_END_RESULT(TC_FAIL);
-	} else {
-		TC_END_RESULT(TC_PASS);
-	}
+
 	return err;
 }
