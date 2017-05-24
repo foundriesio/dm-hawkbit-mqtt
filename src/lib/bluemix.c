@@ -38,7 +38,6 @@
 #define APP_TX_RX_TIMEOUT	K_MSEC(300)
 #define MQTT_SUBSCRIBE_WAIT	K_MSEC(1000)
 #define MQTT_DISCONNECT_WAIT	K_MSEC(1000)
-#define BLUEMIX_MGMT_WAIT	K_MSEC(1200) /* 400 msec has been observed */
 
 /*
  * Various topics are of the form:
