@@ -12,7 +12,7 @@ extern struct net_buf *bt_hci_cmd_create(u16_t opcode, u8_t param_len);
 extern int bt_hci_cmd_send_sync(u16_t opcode, struct net_buf *buf,
 				struct net_buf **rsp);
 
-void ipss_init(struct bt_conn_cb *conn_callbacks);
+int ipss_init(struct bt_conn_cb *conn_callbacks);
 int ipss_set_connected(void);
 int ipss_advertise(void);
 

@@ -139,7 +139,14 @@ void main(void)
 
 	/* Callbacks for BT LE connection state */
 	TC_PRINT("Registering Bluetooth LE connection callbacks\n");
-	ipss_init(&conn_callbacks);
+	err = ipss_init(&conn_callbacks);
+	if (err) {
+		SYS_LOG_ERR("BT GATT attributes failed to set: %d", err);
+		_TC_END_RESULT(TC_FAIL, "ipss_init");
+		TC_END_REPORT(TC_FAIL);
+		return;
+	}
+	_TC_END_RESULT(TC_PASS, "ipss_init");
 
 	TC_PRINT("Advertising Bluetooth IP Profile\n");
 	err = ipss_advertise();

@@ -101,10 +101,16 @@ static const struct bt_data sd_connected[] = {
 		DEVICE_CONNECTED_NAME_LEN),
 };
 
-void ipss_init(struct bt_conn_cb *conn_callbacks)
+int ipss_init(struct bt_conn_cb *conn_callbacks)
 {
-	bt_gatt_register(attrs, ARRAY_SIZE(attrs));
-	bt_conn_cb_register(conn_callbacks);
+	int ret;
+
+	ret = bt_gatt_register(attrs, ARRAY_SIZE(attrs));
+	if (!ret) {
+		bt_conn_cb_register(conn_callbacks);
+	}
+
+	return ret;
 }
 
 /* local copy of set_ad() in subsys/bluetooth/host/hci_core */
