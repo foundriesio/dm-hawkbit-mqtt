@@ -18,7 +18,6 @@
 #include <bluetooth/storage.h>
 
 #include <soc.h>
-#include <tc_util.h>
 
 #include "product_id.h"
 
@@ -83,8 +82,6 @@ int bt_storage_init(void)
 	bt_storage_register(&storage);
 
 	SYS_LOG_DBG("Bluetooth storage driver registered");
-
-	TC_END_RESULT(TC_PASS);
 
 	return 0;
 }
