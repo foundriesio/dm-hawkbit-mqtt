@@ -152,8 +152,11 @@ void main(void)
 	err = ipss_advertise();
 	if (err) {
 		SYS_LOG_ERR("Advertising failed to start: %d", err);
+		_TC_END_RESULT(TC_FAIL, "ipss_advertise");
+		TC_END_REPORT(TC_FAIL);
 		return;
 	}
+	_TC_END_RESULT(TC_PASS, "ipss_advertise");
 #endif
 
 #if defined(CONFIG_NET_TCP)
