@@ -129,13 +129,11 @@ void main(void)
 	err = bt_enable(NULL);
 	if (err) {
 		SYS_LOG_ERR("Bluetooth init failed: %d", err);
-		TC_END_RESULT(TC_FAIL);
+		_TC_END_RESULT(TC_FAIL, "bt_enable");
 		TC_END_REPORT(TC_FAIL);
 		return;
 	}
-	else {
-		TC_END_RESULT(TC_PASS);
-	}
+	_TC_END_RESULT(TC_PASS, "bt_enable");
 
 	/* Callbacks for BT LE connection state */
 	TC_PRINT("Registering Bluetooth LE connection callbacks\n");
