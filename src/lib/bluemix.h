@@ -100,7 +100,7 @@ struct bluemix_ctx {
  * BLUEMIX_EVT_CONN_FAIL. The callback can then signal whether the
  * thread should attempt to reconnect, or halt.
  *
- * @param cb        User callback; this may be NULL if unused.
+ * @param cb        User callback.
  * @param cb_data   Passed to cb along with a bluemix context.
  * @return Zero if the thread started successfully, negative errno
  *         on error.

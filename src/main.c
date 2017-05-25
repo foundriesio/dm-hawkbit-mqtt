@@ -28,7 +28,7 @@
 #include "hawkbit.h"
 #endif
 #if defined(CONFIG_FOTA_BLUEMIX)
-#include "bluemix.h"
+#include "bluemix_temperature.h"
 #endif
 #if defined(CONFIG_NET_TCP)
 #include "tcp.h"
@@ -179,7 +179,7 @@ void main(void)
 
 #if defined(CONFIG_FOTA_BLUEMIX)
 	TC_PRINT("Initializing Bluemix Client service\n");
-	if (bluemix_init(NULL, NULL)) {
+	if (bluemix_temperature_start()) {
 		_TC_END_RESULT(TC_FAIL, "bluemix_init");
 		TC_END_REPORT(TC_FAIL);
 		return;

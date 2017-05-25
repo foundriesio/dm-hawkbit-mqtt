@@ -20,17 +20,13 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <misc/stack.h>
-#include <misc/reboot.h>
 #include <net/net_context.h>
 #include <net/net_event.h>
 #include <net/net_mgmt.h>
-#include <sensor.h>
 
 #include "product_id.h"
 #include "tcp.h"
 #include "bluemix.h"
-
-#define BLUEMIX_MAX_SERVER_FAIL	5
 
 #define BLUEMIX_USERNAME	"use-token-auth"
 #define APP_CONNECT_TRIES	10
@@ -43,11 +39,6 @@ static char bluemix_thread_stack[BLUEMIX_STACK_SIZE];
 static struct k_thread bluemix_thread_data;
 
 int bluemix_sleep = K_SECONDS(3);
-
-#define GENERIC_MCU_TEMP_SENSOR_DEVICE	"fota-mcu-temp"
-#define GENERIC_OFFCHIP_TEMP_SENSOR_DEVICE "fota-offchip-temp"
-struct device *mcu_temp_sensor_dev;
-struct device *offchip_temp_sensor_dev;
 
 static bool connection_ready;
 #if defined(CONFIG_NET_MGMT_EVENT)
@@ -256,43 +247,16 @@ int bluemix_pub_status_json(struct bluemix_ctx *ctx,
 	return publish_message(ctx);
 }
 
-static int get_temp_sensor_data(struct device *temp_dev,
-				struct sensor_value *temp_value,
-				bool use_defaults_on_null)
-{
-	int ret = 0;
-
-	if (!temp_dev) {
-		if (use_defaults_on_null) {
-			temp_value->val1 = 23;
-			temp_value->val2 = 0;
-			return 0;
-		} else {
-			return -ENODEV;
-		}
-	}
-
-	ret = sensor_sample_fetch(temp_dev);
-	if (ret) {
-		return ret;
-	}
-
-	return sensor_channel_get(temp_dev, SENSOR_CHAN_TEMP, temp_value);
-}
-
 static void bluemix_service(void *bm_cbv, void *bm_cb_data, void *p3)
 {
 	static struct bluemix_ctx bluemix_context;
 	bluemix_cb bm_cb = bm_cbv;
 	static int bluemix_inited;
-	u32_t bluemix_failures = 0;
-	struct sensor_value mcu_temp_value;
-	struct sensor_value offchip_temp_value;
 	int ret;
 
 	ARG_UNUSED(p3);
 
-	while (bluemix_failures < BLUEMIX_MAX_SERVER_FAIL) {
+	while (true) {
 		k_sleep(bluemix_sleep);
 
 		if (!connection_ready) {
@@ -304,120 +268,40 @@ static void bluemix_service(void *bm_cbv, void *bm_cb_data, void *p3)
 
 		if (!bluemix_inited) {
 			ret = bluemix_start(&bluemix_context);
-			if (bm_cb) {
-				if (ret) {
-					ret = bm_cb(&bluemix_context,
-						    BLUEMIX_EVT_CONN_FAIL,
-						    bm_cb_data);
-					switch (ret) {
-					case BLUEMIX_CB_OK:
-					case BLUEMIX_CB_RECONNECT:
-						tcp_interface_unlock();
-						continue;
-					default:
-						goto out_unlock;
-					}
-				} else {
-					bluemix_inited = 1;
-				}
-			} else {
-				if (!ret) {
-					/* restart the failed attempt counter */
-					bluemix_failures = 0;
-					bluemix_inited = 1;
-				} else {
-					bluemix_failures++;
-					SYS_LOG_DBG("Failed Bluemix init -"
-						    " attempt %d\n\n",
-						    bluemix_failures);
+			if (ret) {
+				SYS_LOG_ERR("connection failed: %d", ret);
+				ret = bm_cb(&bluemix_context,
+					    BLUEMIX_EVT_CONN_FAIL,
+					    bm_cb_data);
+				switch (ret) {
+				case BLUEMIX_CB_OK:
+				case BLUEMIX_CB_RECONNECT:
 					tcp_interface_unlock();
 					continue;
+				default:
+					goto out_unlock;
 				}
-			}
-		}
-
-		if (bm_cb) {
-			ret = bm_cb(&bluemix_context, BLUEMIX_EVT_POLL,
-				    bm_cb_data);
-			switch (ret) {
-			case BLUEMIX_CB_OK:
-				break;
-			case BLUEMIX_CB_RECONNECT:
-				/*
-				 * TODO: remove this once the
-				 * temperature code is out of this
-				 * file.
-				 */
-				goto reconnect_temp_hack;
-			case BLUEMIX_CB_HALT:
-				goto out_close;
-			default:
-				SYS_LOG_ERR("callback returned %d", ret);
-				goto out_close;
-			}
-		}
-
-		/*
-		 * Fetch temperature sensor values. If we don't have
-		 * an MCU temperature sensor or encounter errors
-		 * reading it, use these values as defaults.
-		 */
-		ret = get_temp_sensor_data(mcu_temp_sensor_dev,
-					   &mcu_temp_value, true);
-		if (ret) {
-			SYS_LOG_ERR("MCU temperature sensor error: %d", ret);
-		} else {
-			SYS_LOG_DBG("Read MCU temp sensor: %d.%dC",
-				    mcu_temp_value.val1, mcu_temp_value.val2);
-		}
-
-		ret = get_temp_sensor_data(offchip_temp_sensor_dev,
-					   &offchip_temp_value, false);
-		if (offchip_temp_sensor_dev) {
-			if (ret) {
-				SYS_LOG_ERR("Off-chip temperature sensor error:"
-					    " %d", ret);
 			} else {
-				SYS_LOG_DBG("Read off-chip temp sensor: %d.%dC",
-					    offchip_temp_value.val1,
-					    offchip_temp_value.val2);
+				bluemix_inited = 1;
 			}
 		}
 
-		/*
-		 * Use the whole number portion of temperature sensor
-		 * values. Don't publish off-chip values if there is
-		 * no sensor, or if there were errors fetching the
-		 * values.
-		 */
-		if (ret) {
-			ret = bluemix_pub_status_json(&bluemix_context,
-						      "{"
-							      "\"mcutemp\":%d"
-						      "}",
-						      mcu_temp_value.val1);
-		} else {
-			ret = bluemix_pub_status_json(&bluemix_context,
-						      "{"
-							      "\"mcutemp\":%d,"
-							      "\"temperature\":%d,"
-						      "}",
-						      mcu_temp_value.val1,
-						      offchip_temp_value.val1);
-		}
-
-		if (ret) {
-			SYS_LOG_ERR("bluemix_pub_status_json: %d", ret);
-			bluemix_failures++;
-		} else {
-			bluemix_failures = 0;
-		}
-
-		/* On error, shut down the connection. */
-		if (ret) {
-reconnect_temp_hack:
+		ret = bm_cb(&bluemix_context, BLUEMIX_EVT_POLL, bm_cb_data);
+		switch (ret) {
+		case BLUEMIX_CB_OK:
+			break;
+		case BLUEMIX_CB_RECONNECT:
 			ret = bluemix_fini(&bluemix_context);
-			SYS_LOG_ERR("bluemix_fini: %d", ret);
+			if (ret) {
+				SYS_LOG_ERR("bluemix_fini: %d", ret);
+			}
+			bluemix_inited = 0;
+			break;
+		case BLUEMIX_CB_HALT:
+			goto out_close;
+		default:
+			SYS_LOG_ERR("callback returned %d", ret);
+			goto out_close;
 		}
 
 		tcp_interface_unlock();
@@ -426,32 +310,12 @@ reconnect_temp_hack:
 			      BLUEMIX_STACK_SIZE);
 	}
 
-	SYS_LOG_ERR("Too many bluemix errors, rebooting!");
-	sys_reboot(0);
-
  out_close:
 	ret = bluemix_fini(&bluemix_context);
 	(void)ret;		/* Ignore the return value. */
  out_unlock:
 	tcp_interface_unlock();
 	return;
-}
-
-static int temp_init(void)
-{
-	mcu_temp_sensor_dev =
-		device_get_binding(GENERIC_MCU_TEMP_SENSOR_DEVICE);
-	offchip_temp_sensor_dev =
-		device_get_binding(GENERIC_OFFCHIP_TEMP_SENSOR_DEVICE);
-
-	SYS_LOG_INF("%s MCU temperature sensor %s%s",
-		 mcu_temp_sensor_dev ? "Found" : "Did not find",
-		 GENERIC_MCU_TEMP_SENSOR_DEVICE,
-		 mcu_temp_sensor_dev ? "" : "\n(Using default values)");
-	SYS_LOG_INF("%s off-chip temperature sensor %s",
-		 offchip_temp_sensor_dev ? "Found" : "Did not find",
-		 GENERIC_OFFCHIP_TEMP_SENSOR_DEVICE);
-	return 0;
 }
 
 static void event_iface_up(struct net_mgmt_event_callback *cb,
@@ -463,14 +327,6 @@ static void event_iface_up(struct net_mgmt_event_callback *cb,
 int bluemix_init(bluemix_cb bm_cb, void *bm_cb_data)
 {
 	struct net_if *iface = net_if_get_default();
-	int ret = 0;
-
-	ret = temp_init();
-	if (ret) {
-		SYS_LOG_ERR("Temp sensor initialization "
-			    "generated err: %d", ret);
-		return ret;
-	}
 
 	k_thread_create(&bluemix_thread_data, &bluemix_thread_stack[0],
 			BLUEMIX_STACK_SIZE, (k_thread_entry_t) bluemix_service,
@@ -482,11 +338,10 @@ int bluemix_init(bluemix_cb bm_cb, void *bm_cb_data)
 		net_mgmt_init_event_callback(&cb, event_iface_up,
 					     NET_EVENT_IF_UP);
 		net_mgmt_add_event_callback(&cb);
-		return ret;
+		return 0;
 	}
 #endif
 
 	event_iface_up(NULL, NET_EVENT_IF_UP, iface);
-
-	return ret;
+	return 0;
 }
