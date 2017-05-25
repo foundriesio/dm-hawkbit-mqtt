@@ -19,6 +19,27 @@
 
 #define CONFIG_FOTA_BLUEMIX_DEVICE_TYPE	CONFIG_BOARD
 
+struct bluemix_ctx;
+
+/**
+ * Return codes for Bluemix user callbacks.
+ */
+enum {
+	/** Continue normally. */
+	BLUEMIX_CB_OK = 0,
+	/** Re-establish Bluemix connection, then proceed. */
+	BLUEMIX_CB_RECONNECT = -1,
+	/** Halt background thread. */
+	BLUEMIX_CB_HALT = -2,
+};
+
+/**
+ * User callback from Bluemix thread.
+ *
+ * The return value must be one of the BLUEMIX_CB_XXX values.
+ */
+typedef int (*bluemix_cb)(struct bluemix_ctx *ctx, void *data);
+
 /**
  * @brief bluemix_ctx	Context structure for Bluemix
  *
@@ -41,7 +62,21 @@ struct bluemix_ctx {
 	struct k_sem wait_sem;
 };
 
-int bluemix_init(void);
+/**
+ * @brief Start a background Bluemix thread
+ *
+ * The background thread will periodically invoke the user callback,
+ * as long as a connection is established. It is safe to publish MQTT
+ * messages when this callback is invoked; for example, it's safe to
+ * call bluemix_pub_status_json(). The callback will not be invoked if
+ * no connection is available.
+ *
+ * @param cb        User callback; this may be NULL if unused.
+ * @param cb_data   Passed to cb along with a bluemix context.
+ * @return Zero if the thread started successfully, negative errno
+ *         on error.
+ */
+int bluemix_init(bluemix_cb cb, void *cb_data);
 
 /**
  * @brief Publish device status reading in JSON format.

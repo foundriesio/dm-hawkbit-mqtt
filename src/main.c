@@ -179,7 +179,7 @@ void main(void)
 
 #if defined(CONFIG_FOTA_BLUEMIX)
 	TC_PRINT("Initializing Bluemix Client service\n");
-	if (bluemix_init()) {
+	if (bluemix_init(NULL, NULL)) {
 		_TC_END_RESULT(TC_FAIL, "bluemix_init");
 		TC_END_REPORT(TC_FAIL);
 		return;

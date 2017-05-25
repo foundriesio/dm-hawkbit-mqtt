@@ -280,14 +280,17 @@ static int get_temp_sensor_data(struct device *temp_dev,
 	return sensor_channel_get(temp_dev, SENSOR_CHAN_TEMP, temp_value);
 }
 
-static void bluemix_service(void)
+static void bluemix_service(void *bm_cbv, void *bm_cb_data, void *p3)
 {
 	static struct bluemix_ctx bluemix_context;
+	bluemix_cb bm_cb = bm_cbv;
 	static int bluemix_inited;
 	u32_t bluemix_failures = 0;
 	struct sensor_value mcu_temp_value;
 	struct sensor_value offchip_temp_value;
 	int ret;
+
+	ARG_UNUSED(p3);
 
 	while (bluemix_failures < BLUEMIX_MAX_SERVER_FAIL) {
 		k_sleep(bluemix_sleep);
@@ -312,6 +315,32 @@ static void bluemix_service(void)
 					    bluemix_failures);
 				tcp_interface_unlock();
 				continue;
+			}
+		}
+
+		if (bm_cb) {
+			ret = bm_cb(&bluemix_context, bm_cb_data);
+			switch (ret) {
+			case BLUEMIX_CB_OK:
+				break;
+			case BLUEMIX_CB_RECONNECT:
+				/*
+				 * TODO: remove this once the
+				 * temperature code is out of this
+				 * file.
+				 */
+				goto reconnect_temp_hack;
+			case BLUEMIX_CB_HALT:
+				ret = bluemix_fini(&bluemix_context);
+				(void)ret;
+				tcp_interface_unlock();
+				return;
+			default:
+				SYS_LOG_ERR("callback returned %d", ret);
+				ret = bluemix_fini(&bluemix_context);
+				(void)ret;
+				tcp_interface_unlock();
+				return;
 			}
 		}
 
@@ -373,6 +402,7 @@ static void bluemix_service(void)
 
 		/* On error, shut down the connection. */
 		if (ret) {
+reconnect_temp_hack:
 			ret = bluemix_fini(&bluemix_context);
 			SYS_LOG_ERR("bluemix_fini: %d", ret);
 		}
@@ -410,7 +440,7 @@ static void event_iface_up(struct net_mgmt_event_callback *cb,
 	connection_ready = true;
 }
 
-int bluemix_init(void)
+int bluemix_init(bluemix_cb bm_cb, void *bm_cb_data)
 {
 	struct net_if *iface = net_if_get_default();
 	int ret = 0;
@@ -424,7 +454,7 @@ int bluemix_init(void)
 
 	k_thread_create(&bluemix_thread_data, &bluemix_thread_stack[0],
 			BLUEMIX_STACK_SIZE, (k_thread_entry_t) bluemix_service,
-			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
+			bm_cb, bm_cb_data, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
 
 #if defined(CONFIG_NET_MGMT_EVENT)
 	/* Subscribe to NET_IF_UP if interface is not ready */
