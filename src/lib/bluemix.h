@@ -34,11 +34,35 @@ enum {
 };
 
 /**
+ * Events for Bluemix user callbacks
+ */
+enum {
+	/**
+	 * Attempt to connect to Bluemix failed.
+	 *
+	 * If callback returns BLUEMIX_CB_OK or BLUEMIX_CB_RECONNECT,
+	 * another attempt to reconnect will be scheduled.
+	 *
+	 * Otherwise, the Bluemix thread will halt.
+	 */
+	BLUEMIX_EVT_CONN_FAIL = -1,
+
+	/**
+	 * Bluemix connection is established; callback may perform I/O.
+	 *
+	 * All callback return codes are accepted.
+	 */
+	BLUEMIX_EVT_POLL      = 0,
+};
+
+/**
  * User callback from Bluemix thread.
+ *
+ * The event argument is a BLUEMIX_EVT_XXX.
  *
  * The return value must be one of the BLUEMIX_CB_XXX values.
  */
-typedef int (*bluemix_cb)(struct bluemix_ctx *ctx, void *data);
+typedef int (*bluemix_cb)(struct bluemix_ctx *ctx, int event, void *data);
 
 /**
  * @brief bluemix_ctx	Context structure for Bluemix
@@ -65,11 +89,16 @@ struct bluemix_ctx {
 /**
  * @brief Start a background Bluemix thread
  *
- * The background thread will periodically invoke the user callback,
- * as long as a connection is established. It is safe to publish MQTT
- * messages when this callback is invoked; for example, it's safe to
- * call bluemix_pub_status_json(). The callback will not be invoked if
- * no connection is available.
+ * The background thread attempts to connect to Bluemix.
+ *
+ * If this succeeds, it periodically invokes the user callback with
+ * the event argument set to BLUEMIX_EVT_POLL. When this happens, it
+ * is safe to publish MQTT messages from the callback; for example,
+ * it's safe to call bluemix_pub_status_json().
+ *
+ * If the attempt to connect fails, the callback is invoked with event
+ * BLUEMIX_EVT_CONN_FAIL. The callback can then signal whether the
+ * thread should attempt to reconnect, or halt.
  *
  * @param cb        User callback; this may be NULL if unused.
  * @param cb_data   Passed to cb along with a bluemix context.

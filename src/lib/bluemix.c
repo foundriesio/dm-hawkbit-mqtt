@@ -304,22 +304,41 @@ static void bluemix_service(void *bm_cbv, void *bm_cb_data, void *p3)
 
 		if (!bluemix_inited) {
 			ret = bluemix_start(&bluemix_context);
-			if (!ret) {
-				/* restart the failed attempt counter */
-				bluemix_failures = 0;
-				bluemix_inited = 1;
+			if (bm_cb) {
+				if (ret) {
+					ret = bm_cb(&bluemix_context,
+						    BLUEMIX_EVT_CONN_FAIL,
+						    bm_cb_data);
+					switch (ret) {
+					case BLUEMIX_CB_OK:
+					case BLUEMIX_CB_RECONNECT:
+						tcp_interface_unlock();
+						continue;
+					default:
+						goto out_unlock;
+					}
+				} else {
+					bluemix_inited = 1;
+				}
 			} else {
-				bluemix_failures++;
-				SYS_LOG_DBG("Failed Bluemix init -"
-					    " attempt %d\n\n",
-					    bluemix_failures);
-				tcp_interface_unlock();
-				continue;
+				if (!ret) {
+					/* restart the failed attempt counter */
+					bluemix_failures = 0;
+					bluemix_inited = 1;
+				} else {
+					bluemix_failures++;
+					SYS_LOG_DBG("Failed Bluemix init -"
+						    " attempt %d\n\n",
+						    bluemix_failures);
+					tcp_interface_unlock();
+					continue;
+				}
 			}
 		}
 
 		if (bm_cb) {
-			ret = bm_cb(&bluemix_context, bm_cb_data);
+			ret = bm_cb(&bluemix_context, BLUEMIX_EVT_POLL,
+				    bm_cb_data);
 			switch (ret) {
 			case BLUEMIX_CB_OK:
 				break;
@@ -331,16 +350,10 @@ static void bluemix_service(void *bm_cbv, void *bm_cb_data, void *p3)
 				 */
 				goto reconnect_temp_hack;
 			case BLUEMIX_CB_HALT:
-				ret = bluemix_fini(&bluemix_context);
-				(void)ret;
-				tcp_interface_unlock();
-				return;
+				goto out_close;
 			default:
 				SYS_LOG_ERR("callback returned %d", ret);
-				ret = bluemix_fini(&bluemix_context);
-				(void)ret;
-				tcp_interface_unlock();
-				return;
+				goto out_close;
 			}
 		}
 
@@ -415,6 +428,13 @@ reconnect_temp_hack:
 
 	SYS_LOG_ERR("Too many bluemix errors, rebooting!");
 	sys_reboot(0);
+
+ out_close:
+	ret = bluemix_fini(&bluemix_context);
+	(void)ret;		/* Ignore the return value. */
+ out_unlock:
+	tcp_interface_unlock();
+	return;
 }
 
 static int temp_init(void)
