@@ -80,12 +80,6 @@ static void disconnect_cb(struct mqtt_ctx *ctx)
 	k_sem_give(&mqtt_to_bluemix(ctx)->wait_sem);
 }
 
-static int publish_tx_cb(struct mqtt_ctx *ctx, u16_t pkt_id,
-			 enum mqtt_packet type)
-{
-	return 0;
-}
-
 static void malformed_cb(struct mqtt_ctx *ctx, u16_t pkt_type)
 {
 	SYS_LOG_DBG("MQTT malformed CB");
@@ -161,7 +155,6 @@ static int bluemix_start(struct bluemix_ctx *ctx)
 	ctx->mqtt_ctx.connect = connect_cb;
 	ctx->mqtt_ctx.disconnect = disconnect_cb;
 	ctx->mqtt_ctx.malformed = malformed_cb;
-	ctx->mqtt_ctx.publish_tx = publish_tx_cb;
 	ctx->mqtt_ctx.net_timeout = APP_TX_RX_TIMEOUT;
 	ctx->mqtt_ctx.net_ctx = tcp_get_net_context(TCP_CTX_BLUEMIX);
 
