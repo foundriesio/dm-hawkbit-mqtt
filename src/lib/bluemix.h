@@ -19,8 +19,6 @@
 
 #define CONFIG_FOTA_BLUEMIX_DEVICE_TYPE	CONFIG_BOARD
 
-#define BM_UUID_LEN 36
-
 /**
  * @brief bluemix_ctx	Context structure for Bluemix
  *
@@ -33,34 +31,11 @@ struct bluemix_ctx {
 
 	struct mqtt_ctx mqtt_ctx;
 
-	/*
-	 * This variable will be passed to the connect callback, declared inside
-	 * the mqtt context struct. If not used, it could be set to NULL.
-	 */
-	void *connect_data;
-
-	/*
-	 * This variable will be passed to the disconnect callback, declared
-	 * inside the mqtt context struct. If not used, it could be set to NULL.
-	 */
-	void *disconnect_data;
-
-	/*
-	 * This variable will be passed to the publish_tx callback, declared
-	 * inside the mqtt context struct. If not used, it could be set to NULL.
-	 */
-	void *publish_data;
-
 	u8_t bm_id[30];	   /* Bluemix device ID */
 	u8_t bm_topic[255];	   /* Buffer for topic names */
 	u8_t bm_message[1024];  /* Buffer for message data */
 	u8_t bm_auth_token[20]; /* Bluemix authentication token */
 	u8_t client_id[50];	   /* MQTT client ID */
-
-	u8_t bm_req_id[BM_UUID_LEN+1]; /* Request UUID scratch space */
-	int     bm_next_req_id;           /* Per-session counter, for bm_req_id */
-
-	int     bm_fatal_err;	/* Set when fatal errors occur */
 
 	/* For waiting for a callback from the MQTT stack. */
 	struct k_sem wait_sem;

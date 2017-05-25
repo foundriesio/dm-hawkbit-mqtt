@@ -177,10 +177,6 @@ static int bluemix_start(struct bluemix_ctx *ctx)
 	ctx->connect_msg.password_len = strlen(ctx->connect_msg.password);
 	ctx->connect_msg.clean_session = 1;
 
-	ctx->connect_data = "CONNECTED";
-	ctx->disconnect_data = "DISCONNECTED";
-	ctx->publish_data = "PUBLISH";
-
 	ret = try_to_connect(&ctx->mqtt_ctx, &ctx->connect_msg);
 	if (ret) {
 		goto out;
