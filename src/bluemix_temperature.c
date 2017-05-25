@@ -19,14 +19,13 @@
 
 #include "bluemix.h"
 
-#define MAX_FAILURES	5
-
-#define GENERIC_MCU_TEMP_SENSOR_DEVICE	"fota-mcu-temp"
-#define GENERIC_OFFCHIP_TEMP_SENSOR_DEVICE "fota-offchip-temp"
+#define MAX_FAILURES		5
+#define MCU_TEMP_DEV		"fota-mcu-temp"
+#define OFFCHIP_TEMP_DEV	"fota-offchip-temp"
 
 struct temp_bluemix_data {
-	struct device *mcu_temp_sensor_dev;
-	struct device *offchip_temp_sensor_dev;
+	struct device *mcu_dev;
+	struct device *offchip_dev;
 	int failures;
 };
 
@@ -48,44 +47,46 @@ static int cb_handle_result(struct temp_bluemix_data *data, int result)
 
 static int init_temp_data(struct temp_bluemix_data *data)
 {
-	data->mcu_temp_sensor_dev =
-		device_get_binding(GENERIC_MCU_TEMP_SENSOR_DEVICE);
-	data->offchip_temp_sensor_dev =
-		device_get_binding(GENERIC_OFFCHIP_TEMP_SENSOR_DEVICE);
+	data->mcu_dev = device_get_binding(MCU_TEMP_DEV);
+	data->offchip_dev = device_get_binding(OFFCHIP_TEMP_DEV);
 	data->failures = 0;
 
-	SYS_LOG_INF("%s MCU temperature sensor %s%s",
-		    data->mcu_temp_sensor_dev ? "Found" : "Did not find",
-		    GENERIC_MCU_TEMP_SENSOR_DEVICE,
-		    data->mcu_temp_sensor_dev ? "" : "; using default values");
+	SYS_LOG_INF("%s MCU temperature sensor %s",
+		    data->mcu_dev ? "Found" : "Did not find",
+		    MCU_TEMP_DEV);
 	SYS_LOG_INF("%s off-chip temperature sensor %s",
-		    data->offchip_temp_sensor_dev ? "Found" : "Did not find",
-		    GENERIC_OFFCHIP_TEMP_SENSOR_DEVICE);
+		    data->offchip_dev ? "Found" : "Did not find",
+		    OFFCHIP_TEMP_DEV);
+
+	if (!data->mcu_dev && !data->offchip_dev) {
+		SYS_LOG_ERR("No temperature devices found.");
+		return -ENODEV;
+	}
+
 	return 0;
 }
 
-static int get_temp_sensor_data(struct device *temp_dev,
-				struct sensor_value *temp_value,
-				bool use_defaults_on_null)
+static int read_temperature(struct device *temp_dev,
+			    struct sensor_value *temp_val)
 {
-	int ret = 0;
-
-	if (!temp_dev) {
-		if (use_defaults_on_null) {
-			temp_value->val1 = 23;
-			temp_value->val2 = 0;
-			return 0;
-		} else {
-			return -ENODEV;
-		}
-	}
+	__unused const char *name = temp_dev->config->name;
+	int ret;
 
 	ret = sensor_sample_fetch(temp_dev);
 	if (ret) {
+		SYS_LOG_ERR("%s: I/O error: %d", name, ret);
 		return ret;
 	}
 
-	return sensor_channel_get(temp_dev, SENSOR_CHAN_TEMP, temp_value);
+	ret = sensor_channel_get(temp_dev, SENSOR_CHAN_TEMP, temp_val);
+	if (ret) {
+		SYS_LOG_ERR("%s: can't get data: %d", name, ret);
+		return ret;
+	}
+
+	SYS_LOG_DBG("%s: read %d.%d C",
+		    name, temp_val->val1, temp_val->val2);
+	return 0;
 }
 
 static int temp_bm_conn_fail(struct bluemix_ctx *ctx, void *data)
@@ -96,56 +97,48 @@ static int temp_bm_conn_fail(struct bluemix_ctx *ctx, void *data)
 static int temp_bm_poll(struct bluemix_ctx *ctx, void *datav)
 {
 	struct temp_bluemix_data *data = datav;
-	struct sensor_value mcu_temp_value;
-	struct sensor_value offchip_temp_value;
-	int ret;
+	struct sensor_value mcu_val;
+	struct sensor_value offchip_val;
+	int ret = 0;
 
 	/*
-	 * Fetch temperature sensor values. If we don't have an MCU
-	 * temperature sensor or encounter errors reading it, use
-	 * these values as defaults.
+	 * Try to read temperature sensor values, and publish the
+	 * whole number portion of temperatures that are read.
 	 */
-	ret = get_temp_sensor_data(data->mcu_temp_sensor_dev,
-				   &mcu_temp_value, true);
+	if (data->mcu_dev) {
+		ret = read_temperature(data->mcu_dev, &mcu_val);
+	}
 	if (ret) {
-		SYS_LOG_ERR("MCU temperature sensor error: %d", ret);
-	} else {
-		SYS_LOG_DBG("Read MCU temp sensor: %d.%dC",
-			    mcu_temp_value.val1, mcu_temp_value.val2);
+		return cb_handle_result(data, ret);
+	}
+	if (data->offchip_dev) {
+		ret = read_temperature(data->offchip_dev, &offchip_val);
+	}
+	if (ret) {
+		return cb_handle_result(data, ret);
 	}
 
-	ret = get_temp_sensor_data(data->offchip_temp_sensor_dev,
-				   &offchip_temp_value, false);
-	if (data->offchip_temp_sensor_dev) {
-		if (ret) {
-			SYS_LOG_ERR("Off-chip temperature sensor error: %d",
-				    ret);
-		} else {
-			SYS_LOG_DBG("Read off-chip temp sensor: %d.%dC",
-				    offchip_temp_value.val1,
-				    offchip_temp_value.val2);
-		}
-	}
-
-	/*
-	 * Use the whole number portion of temperature sensor
-	 * values. Don't publish off-chip values if there is no
-	 * sensor, or if there were errors fetching the values.
-	 */
-	if (ret) {
+	if (data->mcu_dev && data->offchip_dev) {
+		ret = bluemix_pub_status_json(ctx,
+					      "{"
+					      "\"mcutemp\":%d,"
+					      "\"temperature\":%d"
+					      "}",
+					      mcu_val.val1,
+					      offchip_val.val1);
+	} else if (data->mcu_dev) {
 		ret = bluemix_pub_status_json(ctx,
 					      "{"
 					      "\"mcutemp\":%d"
 					      "}",
-					      mcu_temp_value.val1);
+					      mcu_val.val1);
 	} else {
+		/* We know we have at least one device. */
 		ret = bluemix_pub_status_json(ctx,
 					      "{"
-					      "\"mcutemp\":%d,"
-					      "\"temperature\":%d,"
+					      "\"temperature\":%d"
 					      "}",
-					      mcu_temp_value.val1,
-					      offchip_temp_value.val1);
+					      offchip_val.val1);
 	}
 
 	return cb_handle_result(data, ret);
