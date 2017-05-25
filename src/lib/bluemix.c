@@ -70,10 +70,13 @@ static inline int wait_for_mqtt(struct bluemix_ctx *ctx, s32_t timeout)
 
 static void connect_cb(struct mqtt_ctx *ctx)
 {
+	SYS_LOG_DBG("MQTT connected");
+	k_sem_give(&mqtt_to_bluemix(ctx)->wait_sem);
 }
 
 static void disconnect_cb(struct mqtt_ctx *ctx)
 {
+	SYS_LOG_DBG("MQTT disconnected");
 	k_sem_give(&mqtt_to_bluemix(ctx)->wait_sem);
 }
 
@@ -88,26 +91,30 @@ static void malformed_cb(struct mqtt_ctx *ctx, u16_t pkt_type)
 	SYS_LOG_DBG("MQTT malformed CB");
 }
 
-/* In this routine we block until the connected variable is 1 */
-static int try_to_connect(struct mqtt_ctx *ctx, struct mqtt_connect_msg *msg)
+/*
+ * Try to connect to the MQTT broker. The Bluemix context must have
+ * properly initialized mqtt_ctx and connect_msg fields.
+ */
+static int try_to_connect(struct bluemix_ctx *ctx)
 {
+	struct mqtt_ctx *mqtt = &ctx->mqtt_ctx;
+	struct mqtt_connect_msg *msg = &ctx->connect_msg;
 	int i = 0;
 	int ret;
 
-	while (i++ < APP_CONNECT_TRIES && !ctx->connected) {
-		ret = mqtt_tx_connect(ctx, msg);
-		k_sleep(APP_SLEEP_MSECS);
+	for (i = 0; i < APP_CONNECT_TRIES; i++) {
+		ret = mqtt_tx_connect(mqtt, msg);
 		if (ret) {
 			SYS_LOG_ERR("mqtt_tx_connect: %d", ret);
 			continue;
 		}
+		ret = wait_for_mqtt(ctx, APP_SLEEP_MSECS);
+		if (mqtt->connected) {
+			return 0;
+		}
 	}
 
-	if (ctx->connected) {
-		return 0;
-	}
-
-	return -EINVAL;
+	return -ETIMEDOUT;
 }
 
 /*
@@ -177,7 +184,7 @@ static int bluemix_start(struct bluemix_ctx *ctx)
 	ctx->connect_msg.password_len = strlen(ctx->connect_msg.password);
 	ctx->connect_msg.clean_session = 1;
 
-	ret = try_to_connect(&ctx->mqtt_ctx, &ctx->connect_msg);
+	ret = try_to_connect(ctx);
 	if (ret) {
 		goto out;
 	}
