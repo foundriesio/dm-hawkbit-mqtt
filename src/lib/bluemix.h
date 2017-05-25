@@ -31,11 +31,11 @@ struct bluemix_ctx {
 
 	struct mqtt_ctx mqtt_ctx;
 
-	u8_t bm_id[30];	   /* Bluemix device ID */
-	u8_t bm_topic[255];	   /* Buffer for topic names */
-	u8_t bm_message[1024];  /* Buffer for message data */
-	u8_t bm_auth_token[20]; /* Bluemix authentication token */
-	u8_t client_id[50];	   /* MQTT client ID */
+	u8_t bm_id[30];		/* Bluemix device ID */
+	u8_t bm_topic[255];		/* Buffer for topic names */
+	u8_t bm_message[1024];		/* Buffer for message data */
+	u8_t bm_auth_token[20];	/* Bluemix authentication token */
+	u8_t client_id[50];		/* MQTT client ID */
 
 	/* For waiting for a callback from the MQTT stack. */
 	struct k_sem wait_sem;
