@@ -378,7 +378,7 @@ static void bluemix_service(void)
 			bluemix_failures = 0;
 		}
 
-		/* Either way, shut it down. */
+		/* On error, shut down the connection. */
 		if (ret) {
 			ret = bluemix_fini(&bluemix_context);
 			SYS_LOG_ERR("bluemix_fini: %d", ret);
