@@ -36,17 +36,7 @@
 #define APP_CONNECT_TRIES	10
 #define APP_SLEEP_MSECS	K_MSEC(500)
 #define APP_TX_RX_TIMEOUT	K_MSEC(300)
-#define MQTT_SUBSCRIBE_WAIT	K_MSEC(1000)
 #define MQTT_DISCONNECT_WAIT	K_MSEC(1000)
-
-/*
- * Various topics are of the form:
- * "foo/type/<device_type>/id/<device_id>/bar".
- * This is a convenience macro for those cases.
- */
-#define INIT_DEVICE_TOPIC(ctx, fmt)					\
-	snprintf(ctx->bm_topic, sizeof(ctx->bm_topic), fmt,		\
-		 CONFIG_FOTA_BLUEMIX_DEVICE_TYPE, ctx->bm_id)
 
 #define BLUEMIX_STACK_SIZE 1024
 static char bluemix_thread_stack[BLUEMIX_STACK_SIZE];
@@ -71,7 +61,7 @@ static inline struct bluemix_ctx* mqtt_to_bluemix(struct mqtt_ctx *mqtt)
 
 static inline int wait_for_mqtt(struct bluemix_ctx *ctx, s32_t timeout)
 {
-	return k_sem_take(&ctx->reply_sem, timeout);
+	return k_sem_take(&ctx->wait_sem, timeout);
 }
 
 /*
@@ -84,63 +74,12 @@ static void connect_cb(struct mqtt_ctx *ctx)
 
 static void disconnect_cb(struct mqtt_ctx *ctx)
 {
-	k_sem_give(&mqtt_to_bluemix(ctx)->reply_sem);
+	k_sem_give(&mqtt_to_bluemix(ctx)->wait_sem);
 }
 
 static int publish_tx_cb(struct mqtt_ctx *ctx, u16_t pkt_id,
 			 enum mqtt_packet type)
 {
-	return 0;
-}
-
-static int publish_rx_cb(struct mqtt_ctx *ctx, struct mqtt_publish_msg *msg,
-			 u16_t pkt_id, enum mqtt_packet type)
-{
-	struct bluemix_ctx *bm_ctx;
-
-	bm_ctx = mqtt_to_bluemix(ctx);
-
-	if (msg->topic_len + 1 > sizeof(bm_ctx->bm_topic)) {
-		bm_ctx->bm_fatal_err = -ENOMEM;
-		SYS_LOG_ERR("Bluemix topic buffer size %u overflowed by %u B",
-			    sizeof(bm_ctx->bm_topic),
-			    msg->topic_len + 1 - sizeof(bm_ctx->bm_topic));
-
-	} else if (msg->msg_len + 1 > sizeof(bm_ctx->bm_message)) {
-		bm_ctx->bm_fatal_err = -ENOMEM;
-		SYS_LOG_ERR("Bluemix message buffer size %u overflowed by %u B",
-			    sizeof(bm_ctx->bm_message),
-			    msg->msg_len + 1 - sizeof(bm_ctx->bm_message));
-	}
-	if (bm_ctx->bm_fatal_err) {
-		/* Propagate fatal error to waiter. */
-		k_sem_give(&bm_ctx->reply_sem);
-		return 0;
-	}
-
-	memcpy(bm_ctx->bm_topic, msg->topic, msg->topic_len);
-	bm_ctx->bm_topic[msg->topic_len] = '\0';
-	memcpy(bm_ctx->bm_message, msg->msg, msg->msg_len);
-	bm_ctx->bm_message[msg->msg_len] = '\0';
-	k_sem_give(&bm_ctx->reply_sem);
-
-	/* FIXME: parse JSON and validate any pending reqId. */
-	SYS_LOG_DBG("topic: %s", bm_ctx->bm_topic);
-	SYS_LOG_DBG("msg: %s", bm_ctx->bm_message);
-	return 0;
-}
-
-static int subscribe_cb(struct mqtt_ctx *ctx, u16_t pkt_id,
-			u8_t items, enum mqtt_qos qos[])
-{
-	/* FIXME: validate this is the suback we were waiting for. */
-	k_sem_give(&mqtt_to_bluemix(ctx)->reply_sem);
-	return 0;
-}
-
-static int unsubscribe_cb(struct mqtt_ctx *ctx, u16_t pkt_id)
-{
-	SYS_LOG_DBG("MQTT unsubscribe CB");
 	return 0;
 }
 
@@ -175,22 +114,6 @@ static int try_to_connect(struct mqtt_ctx *ctx, struct mqtt_connect_msg *msg)
  * Bluemix
  */
 
-static int subscribe_to_topic(struct bluemix_ctx *ctx)
-{
-	const char* topics[] = { ctx->bm_topic };
-	const enum mqtt_qos qos0[] = { MQTT_QoS0 };
-	int ret;
-
-	ret = mqtt_tx_subscribe(&ctx->mqtt_ctx, sys_rand32_get() & 0xffff,
-				1, topics, qos0);
-	if (ret) {
-		SYS_LOG_ERR("mqtt_tx_subscribe: %d", ret);
-		return ret;
-	}
-	ret = wait_for_mqtt(ctx, MQTT_SUBSCRIBE_WAIT);
-	return ret;
-}
-
 static int publish_message(struct bluemix_ctx *ctx)
 {
 	SYS_LOG_DBG("topic:%s", ctx->pub_msg.topic);
@@ -217,7 +140,7 @@ static int bluemix_start(struct bluemix_ctx *ctx)
 	snprintf(ctx->bm_auth_token, sizeof(ctx->bm_auth_token),
 		 "%08x", product_id_get()->number);
 
-	k_sem_init(&ctx->reply_sem, 0, 1);
+	k_sem_init(&ctx->wait_sem, 0, 1);
 
 	/*
 	 * try connecting here so that tcp_get_net_context()
@@ -232,13 +155,10 @@ static int bluemix_start(struct bluemix_ctx *ctx)
 	ctx->mqtt_ctx.disconnect = disconnect_cb;
 	ctx->mqtt_ctx.malformed = malformed_cb;
 	ctx->mqtt_ctx.publish_tx = publish_tx_cb;
-	ctx->mqtt_ctx.publish_rx = publish_rx_cb;
-	ctx->mqtt_ctx.subscribe = subscribe_cb;
-	ctx->mqtt_ctx.unsubscribe = unsubscribe_cb;
 	ctx->mqtt_ctx.net_timeout = APP_TX_RX_TIMEOUT;
 	ctx->mqtt_ctx.net_ctx = tcp_get_net_context(TCP_CTX_BLUEMIX);
 
-	ret = mqtt_init(&ctx->mqtt_ctx, MQTT_APP_PUBLISHER_SUBSCRIBER);
+	ret = mqtt_init(&ctx->mqtt_ctx, MQTT_APP_PUBLISHER);
 	if (ret) {
 		goto out;
 	}
@@ -250,21 +170,6 @@ static int bluemix_start(struct bluemix_ctx *ctx)
 	 */
 	ctx->connect_msg.client_id = ctx->client_id;
 	ctx->connect_msg.client_id_len = strlen(ctx->connect_msg.client_id);
-	/*
-	 * FIXME: HACK
-	 *
-	 * This is part of a work-around for problems with the Zephyr
-	 * MQTT stack. That stack doesn't correctly parse multiple
-	 * MQTT packets within a single struct net_pkt. Working around
-	 * that implies trying to never receive multiple MQTT packets
-	 * in the same net_pkt.
-	 *
-	 * In order to avoid having to worry about scheduling PINGREQ
-	 * packets (whose PINGRESP packets might come at an
-	 * inconvenient time relative to other MQTT traffic), let's
-	 * just disable the keep alive feature entirely for now. We
-	 * should turn it on later.
-	 */
 	ctx->connect_msg.keep_alive = 0;
 	ctx->connect_msg.user_name = BLUEMIX_USERNAME;
 	ctx->connect_msg.user_name_len = strlen(ctx->connect_msg.user_name);
@@ -278,13 +183,6 @@ static int bluemix_start(struct bluemix_ctx *ctx)
 
 	ret = try_to_connect(&ctx->mqtt_ctx, &ctx->connect_msg);
 	if (ret) {
-		goto out;
-	}
-
-	INIT_DEVICE_TOPIC(ctx, "iot-2/type/%s/id/%s/cmd/+/fmt/+");
-	ret = subscribe_to_topic(ctx);
-	if (ret) {
-		SYS_LOG_ERR("can't subscribe to command topics: %d", ret);
 		goto out;
 	}
 
@@ -316,7 +214,9 @@ int bluemix_pub_status_json(struct bluemix_ctx *ctx,
 	va_list vargs;
 	int ret;
 
-	INIT_DEVICE_TOPIC(ctx, "iot-2/type/%s/id/%s/evt/status/fmt/json");
+	snprintf(ctx->bm_topic, sizeof(ctx->bm_topic),
+		 "iot-2/type/%s/id/%s/evt/status/fmt/json",
+		 CONFIG_FOTA_BLUEMIX_DEVICE_TYPE, ctx->bm_id);
 
 	/* Fill in the initial '{"d":'. */
 	ret = snprintf(ctx->bm_message, sizeof(ctx->bm_message), "{\"d\":");
@@ -335,7 +235,23 @@ int bluemix_pub_status_json(struct bluemix_ctx *ctx,
 	/* Append the closing brace. */
 	snprintf(ctx->bm_message + ret, sizeof(ctx->bm_message) - ret, "}");
 
-	/* Fill out the MQTT publication, and ship it. */
+	/* Fill out the MQTT publication, and ship it.
+	 *
+	 * IMPORTANT: don't increase the level of QoS here, even if
+	 *            Zephyr claims to support it, until the Zephyr
+	 *            MQTT stack can correctly parse multiple MQTT
+	 *            packets within a single struct net_pkt.
+	 *
+	 * Working around that issue implies never receiving multiple
+	 * MQTT packets in the same net_pkt.
+	 *
+	 * Keep this at QoS 0 to avoid receiving PUBACK or PUBREC in
+	 * response to this message. Since this app is a publisher
+	 * only, the remaining possible incoming messages are CONNACK
+	 * and PINGRESP (depending on nonzero keep_alive). Those will
+	 * never be transmitted at the same time, as we ought to wait
+	 * for CONNACK before sending any PINGREQs.
+	 */
 	pub_msg->msg = ctx->bm_message;
 	pub_msg->msg_len = strlen(pub_msg->msg);
 	pub_msg->qos = MQTT_QoS0;

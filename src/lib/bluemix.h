@@ -62,20 +62,8 @@ struct bluemix_ctx {
 
 	int     bm_fatal_err;	/* Set when fatal errors occur */
 
-	/*
-	 * HACK: Semaphore for waiting for a response from Bluemix.
-	 *
-	 * The Zephyr MQTT stack currently assumes that at most one
-	 * MQTT command packet is stored in a net_buf. When two or
-	 * more are received and packed into the same net_buf, this is
-	 * resulting in all of them being interpreted as a single
-	 * malformed packet.
-	 *
-	 * To work around that, try to make the MQTT stack's
-	 * assumption valid by waiting whenever we expect a response
-	 * via MQTT, to avoid multiple inbound response packets.
-	 */
-	struct k_sem reply_sem;
+	/* For waiting for a callback from the MQTT stack. */
+	struct k_sem wait_sem;
 };
 
 int bluemix_init(void);
