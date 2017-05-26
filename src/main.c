@@ -17,6 +17,7 @@
 
 /* Local helpers and functions */
 #include "tstamp_log.h"
+#include "app_work_queue.h"
 #include "mcuboot.h"
 #include "product_id.h"
 #if defined(CONFIG_BLUETOOTH)
@@ -44,7 +45,20 @@
 #define GPIO_DRV_BT	BT_GPIO_PORT
 #endif
 
+#define BLINK_DELAY     K_SECONDS(1)
+
 struct device *flash_dev;
+
+struct blink_ctx {
+	struct k_delayed_work work;
+	struct device *gpio;
+	u32_t count;
+};
+
+static struct blink_ctx blink_context = {
+	.gpio = NULL,
+	.count = 0,
+};
 
 #if defined(CONFIG_BLUETOOTH)
 /* BT LE Connect/Disconnect callbacks */
@@ -87,23 +101,12 @@ static struct bt_conn_cb conn_callbacks = {
 };
 #endif
 
-void blink_led(void)
+static void blink_handler(struct k_work *work)
 {
-	u32_t cnt = 0;
-	struct device *gpio;
+	struct blink_ctx *blink = CONTAINER_OF(work, struct blink_ctx, work);
 
-	gpio = device_get_binding(LED_GPIO_PORT);
-	gpio_pin_configure(gpio, LED_GPIO_PIN, GPIO_DIR_OUT);
-
-	while (1) {
-		gpio_pin_write(gpio, LED_GPIO_PIN, cnt % 2);
-		k_sleep(K_SECONDS(1));
-                if (cnt == 1) {
-                        TC_END_RESULT(TC_PASS);
-                        TC_END_REPORT(TC_PASS);
-                }
-		cnt++;
-	}
+	gpio_pin_write(blink->gpio, LED_GPIO_PIN, blink->count++ % 2);
+	app_wq_submit_delayed(&blink->work, BLINK_DELAY);
 }
 
 void main(void)
@@ -113,6 +116,7 @@ void main(void)
 #endif
 
 	tstamp_hook_install();
+	app_wq_init();
 
 	SYS_LOG_INF("Linaro FOTA example application");
 	SYS_LOG_INF("Device: %s, Serial: %x",
@@ -188,5 +192,23 @@ void main(void)
 #endif
 
 	TC_PRINT("Blinking LED\n");
-	blink_led();
+	k_delayed_work_init(&blink_context.work, blink_handler);
+	blink_context.gpio = device_get_binding(LED_GPIO_PORT);
+	if (blink_context.gpio == NULL) {
+		_TC_END_RESULT(TC_FAIL, "blink_led");
+		TC_END_REPORT(TC_FAIL);
+		return;
+	}
+	gpio_pin_configure(blink_context.gpio, LED_GPIO_PIN, GPIO_DIR_OUT);
+	gpio_pin_write(blink_context.gpio, LED_GPIO_PIN,
+		       blink_context.count++ % 2);
+	app_wq_submit_delayed(&blink_context.work, BLINK_DELAY);
+	_TC_END_RESULT(TC_PASS, "blink_led");
+
+	TC_END_REPORT(TC_PASS);
+
+	/*
+	 * From this point on, just handle work.
+	 */
+	app_wq_run();
 }
