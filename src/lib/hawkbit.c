@@ -214,7 +214,7 @@ static int handle_headers_complete_download(struct http_parser *parser)
 
 void hawkbit_device_acid_read(struct hawkbit_device_acid *device_acid)
 {
-	flash_read(flash_dev, FLASH_STATE_OFFSET, device_acid,
+	flash_read(flash_dev, FLASH_AREA_APPLICATION_STATE_OFFSET, device_acid,
 		   sizeof(*device_acid));
 }
 
@@ -231,7 +231,7 @@ static int hawkbit_device_acid_update(hawkbit_dev_acid_t type,
 	struct hawkbit_device_acid device_acid;
 	int ret;
 
-	flash_read(flash_dev, FLASH_STATE_OFFSET, &device_acid,
+	flash_read(flash_dev, FLASH_AREA_APPLICATION_STATE_OFFSET, &device_acid,
 		   sizeof(device_acid));
 	if (type == HAWKBIT_ACID_UPDATE) {
 		device_acid.update = new_value;
@@ -240,15 +240,16 @@ static int hawkbit_device_acid_update(hawkbit_dev_acid_t type,
 	}
 
 	flash_write_protection_set(flash_dev, false);
-	ret = flash_erase(flash_dev, FLASH_STATE_OFFSET, FLASH_STATE_SIZE);
+	ret = flash_erase(flash_dev, FLASH_AREA_APPLICATION_STATE_OFFSET,
+			  FLASH_AREA_APPLICATION_STATE_SIZE);
 	flash_write_protection_set(flash_dev, true);
 	if (ret) {
 		return ret;
 	}
 
 	flash_write_protection_set(flash_dev, false);
-	ret = flash_write(flash_dev, FLASH_STATE_OFFSET, &device_acid,
-			  sizeof(device_acid));
+	ret = flash_write(flash_dev, FLASH_AREA_APPLICATION_STATE_OFFSET,
+			  &device_acid, sizeof(device_acid));
 	flash_write_protection_set(flash_dev, true);
 	return ret;
 }
@@ -268,14 +269,14 @@ static int hawkbit_start(void)
 	if (boot_status == BOOT_STATUS_ONGOING) {
 		boot_status_update();
 		SYS_LOG_INF("Updated boot status to %x", boot_status_read());
-		ret = boot_erase_flash_bank(FLASH_BANK1_OFFSET);
+		ret = boot_erase_flash_bank(FLASH_AREA_IMAGE_1_OFFSET);
 		if (ret) {
 			SYS_LOG_ERR("Flash bank erase at offset %x: error %d",
-				    FLASH_BANK1_OFFSET, ret);
+				    FLASH_AREA_IMAGE_1_OFFSET, ret);
 			return ret;
 		} else {
 			SYS_LOG_DBG("Erased flash bank at offset %x",
-				    FLASH_BANK1_OFFSET);
+				    FLASH_AREA_IMAGE_1_OFFSET);
 		}
 		if (init_acid.update != -1) {
 			ret = hawkbit_device_acid_update(HAWKBIT_ACID_CURRENT,
@@ -377,7 +378,7 @@ static void hawkbit_download_cb(struct net_context *context,
 
 	while (rx_buf && hbd->download_status == 0) {
 		/* handle data */
-		if (flash_block_write(flash_dev, FLASH_BANK1_OFFSET,
+		if (flash_block_write(flash_dev, FLASH_AREA_IMAGE_1_OFFSET,
 				      &hbd->downloaded_size, ptr,
 				      len, false) < 0) {
 			hbd->download_status = -1;
@@ -412,11 +413,12 @@ static int hawkbit_install_update(u8_t *tcp_buffer, size_t size,
 	}
 
 	flash_write_protection_set(flash_dev, false);
-	ret = flash_erase(flash_dev, FLASH_BANK1_OFFSET, FLASH_BANK_SIZE);
+	ret = flash_erase(flash_dev, FLASH_AREA_IMAGE_1_OFFSET,
+			  FLASH_BANK_SIZE);
 	flash_write_protection_set(flash_dev, true);
 	if (ret != 0) {
 		SYS_LOG_ERR("Failed to erase flash at offset %x, size %d",
-					FLASH_BANK1_OFFSET, FLASH_BANK_SIZE);
+			    FLASH_AREA_IMAGE_1_OFFSET, FLASH_BANK_SIZE);
 		return -EIO;
 	}
 
@@ -468,7 +470,7 @@ static int hawkbit_install_update(u8_t *tcp_buffer, size_t size,
 	/* Everything looks good, so fetch and flash */
 	if (hbd.http_header_read > hbd.http_header_size) {
 		len = hbd.http_header_read - hbd.http_header_size;
-		ret = flash_block_write(flash_dev, FLASH_BANK1_OFFSET,
+		ret = flash_block_write(flash_dev, FLASH_AREA_IMAGE_1_OFFSET,
 				      &hbd.downloaded_size,
 				      tcp_buffer + hbd.http_header_size,
 				      len, false);
@@ -500,7 +502,7 @@ static int hawkbit_install_update(u8_t *tcp_buffer, size_t size,
 	 * NOTE: Ignoring returned error here since done is done.
 	 * downloaded_size will be incorrect and OTA will fail.
 	 */
-	flash_block_write(flash_dev, FLASH_BANK1_OFFSET,
+	flash_block_write(flash_dev, FLASH_AREA_IMAGE_1_OFFSET,
 			  &hbd.downloaded_size, NULL, 0, true);
 
 	tcp_cleanup(TCP_CTX_HAWKBIT, true);

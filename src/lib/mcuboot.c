@@ -68,7 +68,7 @@ u8_t boot_status_read(void)
 	u32_t offset;
 	u8_t img_ok = 0;
 
-	offset = boot_trailer_image_ok(FLASH_BANK0_OFFSET);
+	offset = boot_trailer_image_ok(FLASH_AREA_IMAGE_0_OFFSET);
 	flash_read(flash_dev, offset, &img_ok, sizeof(u8_t));
 
 	return img_ok;
@@ -84,7 +84,7 @@ void boot_status_update(void)
 	u8_t img_ok;
 	u8_t update_buf[TRAILER_IMAGE_OK_SIZE];
 
-	offset = boot_trailer_image_ok(FLASH_BANK0_OFFSET);
+	offset = boot_trailer_image_ok(FLASH_AREA_IMAGE_0_OFFSET);
 	flash_read(flash_dev, offset, &img_ok, sizeof(u8_t));
 	if (img_ok == BOOT_STATUS_ONGOING) {
 		memset(update_buf, TRAILER_PADDING, sizeof(update_buf));
@@ -102,8 +102,8 @@ void boot_trigger_ota(void)
 	u8_t copy_done[TRAILER_COPY_DONE_SIZE];
 	u8_t image_ok[TRAILER_IMAGE_OK_SIZE];
 
-	copy_done_offset = boot_trailer_copy_done(FLASH_BANK1_OFFSET);
-	image_ok_offset = boot_trailer_image_ok(FLASH_BANK1_OFFSET);
+	copy_done_offset = boot_trailer_copy_done(FLASH_AREA_IMAGE_1_OFFSET);
+	image_ok_offset = boot_trailer_image_ok(FLASH_AREA_IMAGE_1_OFFSET);
 	memset(copy_done, TRAILER_PADDING, sizeof(copy_done));
 	memset(image_ok, TRAILER_PADDING, sizeof(image_ok));
 
