@@ -94,7 +94,7 @@ typedef enum {
 #define HAWKBIT_RX_TIMEOUT	K_SECONDS(3)
 
 #define HAWKBIT_STACK_SIZE 3840
-static char hawkbit_thread_stack[HAWKBIT_STACK_SIZE];
+static K_THREAD_STACK_DEFINE(hawkbit_thread_stack, HAWKBIT_STACK_SIZE);
 static struct k_thread hawkbit_thread_data;
 
 int poll_sleep = K_SECONDS(30);
@@ -1008,7 +1008,7 @@ static void hawkbit_service(void)
 		tcp_interface_unlock();
 
 		stack_analyze("Hawkbit Thread", hawkbit_thread_stack,
-			      HAWKBIT_STACK_SIZE);
+			      K_THREAD_STACK_SIZEOF(hawkbit_thread_stack));
 	} while (1);
 }
 
@@ -1031,7 +1031,8 @@ int hawkbit_init(void)
 	}
 
 	k_thread_create(&hawkbit_thread_data, &hawkbit_thread_stack[0],
-			HAWKBIT_STACK_SIZE, (k_thread_entry_t) hawkbit_service,
+			K_THREAD_STACK_SIZEOF(hawkbit_thread_stack),
+			(k_thread_entry_t) hawkbit_service,
 			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
 
 #if defined(CONFIG_NET_MGMT_EVENT)

@@ -35,7 +35,7 @@
 #define MQTT_DISCONNECT_WAIT	K_MSEC(1000)
 
 #define BLUEMIX_STACK_SIZE 1024
-static char bluemix_thread_stack[BLUEMIX_STACK_SIZE];
+static K_THREAD_STACK_DEFINE(bluemix_thread_stack, BLUEMIX_STACK_SIZE);
 static struct k_thread bluemix_thread_data;
 
 int bluemix_sleep = K_SECONDS(3);
@@ -307,7 +307,7 @@ static void bluemix_service(void *bm_cbv, void *bm_cb_data, void *p3)
 		tcp_interface_unlock();
 
 		stack_analyze("Bluemix Thread", bluemix_thread_stack,
-			      BLUEMIX_STACK_SIZE);
+			      K_THREAD_STACK_SIZEOF(bluemix_thread_stack));
 	}
 
  out_close:
@@ -329,7 +329,8 @@ int bluemix_init(bluemix_cb bm_cb, void *bm_cb_data)
 	struct net_if *iface = net_if_get_default();
 
 	k_thread_create(&bluemix_thread_data, &bluemix_thread_stack[0],
-			BLUEMIX_STACK_SIZE, (k_thread_entry_t) bluemix_service,
+			K_THREAD_STACK_SIZEOF(bluemix_thread_stack),
+			(k_thread_entry_t) bluemix_service,
 			bm_cb, bm_cb_data, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
 
 #if defined(CONFIG_NET_MGMT_EVENT)
