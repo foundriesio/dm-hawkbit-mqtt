@@ -20,47 +20,49 @@
 
 /*
  * Helpers for image trailer, as defined by mcuboot.
+ *
+ * The first byte of the "image OK" and "copy done" areas contain
+ * payload. The rest is padded with 0xff for flash write
+ * alignment. The payload is cleared when set to the pad value, and
+ * set when set to 0x01.
  */
 
-#define TRAILER_IMAGE_MAGIC_SIZE	(4 * sizeof(u32_t))
-#define TRAILER_SWAP_STATUS_SIZE	(128 * FLASH_MIN_WRITE_SIZE * 3)
-#define TRAILER_COPY_DONE_SIZE		FLASH_MIN_WRITE_SIZE
-#define TRAILER_IMAGE_OK_SIZE		FLASH_MIN_WRITE_SIZE
+#define PAD_SIZE 7
+#define PAD_VALUE 0xff
+#define MAGIC_SIZE 16
 
-#define TRAILER_SIZE			(TRAILER_IMAGE_MAGIC_SIZE +	\
-					 TRAILER_SWAP_STATUS_SIZE +	\
-					 TRAILER_COPY_DONE_SIZE +	\
-					 TRAILER_IMAGE_OK_SIZE)
+__packed
+struct boot_copy_done {
+	u8_t copy_done;
+	u8_t pad[PAD_SIZE];
+};
 
-#define TRAILER_COPY_DONE		0x01
-#define TRAILER_PADDING			0xff
+__packed
+struct boot_image_ok {
+	u8_t image_ok;
+	u8_t pad[PAD_SIZE];
+};
+
+__packed
+struct boot_trailer {
+	struct boot_copy_done cd;
+	struct boot_image_ok ok;
+	u8_t magic[MAGIC_SIZE];
+};
 
 static u32_t boot_trailer(u32_t bank_offset)
 {
-	return bank_offset + FLASH_BANK_SIZE - TRAILER_SIZE;
-}
-
-static u32_t boot_trailer_magic(u32_t bank_offset)
-{
-	return boot_trailer(bank_offset);
-}
-
-static u32_t boot_trailer_swap_status(u32_t bank_offset)
-{
-	return boot_trailer_magic(bank_offset) +
-		TRAILER_IMAGE_MAGIC_SIZE;
+	return bank_offset + FLASH_BANK_SIZE - sizeof(struct boot_trailer);
 }
 
 static u32_t boot_trailer_copy_done(u32_t bank_offset)
 {
-	return boot_trailer_swap_status(bank_offset) +
-		TRAILER_SWAP_STATUS_SIZE;
+	return boot_trailer(bank_offset) + offsetof(struct boot_trailer, cd);
 }
 
 static u32_t boot_trailer_image_ok(u32_t bank_offset)
 {
-	return boot_trailer_copy_done(bank_offset) +
-		TRAILER_COPY_DONE_SIZE;
+	return boot_trailer(bank_offset) + offsetof(struct boot_trailer, ok);
 }
 
 u8_t boot_status_read(void)
@@ -77,21 +79,16 @@ u8_t boot_status_read(void)
 void boot_status_update(void)
 {
 	u32_t offset;
-	/*
-	 * The first byte of the Image OK area contains payload. The
-	 * rest is padded with 0xff for flash write alignment.
-	 */
-	u8_t img_ok;
-	u8_t update_buf[TRAILER_IMAGE_OK_SIZE];
+	struct boot_image_ok ok;
 
 	offset = boot_trailer_image_ok(FLASH_AREA_IMAGE_0_OFFSET);
-	flash_read(flash_dev, offset, &img_ok, sizeof(u8_t));
-	if (img_ok == BOOT_STATUS_ONGOING) {
-		memset(update_buf, TRAILER_PADDING, sizeof(update_buf));
-		update_buf[0] = BOOT_STATUS_DONE;
+	flash_read(flash_dev, offset, &ok.image_ok, sizeof(ok.image_ok));
+	if (ok.image_ok == BOOT_STATUS_ONGOING) {
+		ok.image_ok = BOOT_STATUS_DONE;
+		memset(ok.pad, PAD_VALUE, sizeof(ok.pad));
 
 		flash_write_protection_set(flash_dev, false);
-		flash_write(flash_dev, offset, update_buf, sizeof(update_buf));
+		flash_write(flash_dev, offset, &ok, sizeof(ok));
 		flash_write_protection_set(flash_dev, true);
 	}
 }
@@ -99,20 +96,20 @@ void boot_status_update(void)
 void boot_trigger_ota(void)
 {
 	u32_t copy_done_offset, image_ok_offset;
-	u8_t copy_done[TRAILER_COPY_DONE_SIZE];
-	u8_t image_ok[TRAILER_IMAGE_OK_SIZE];
+	struct boot_copy_done cd;
+	struct boot_image_ok ok;
 
 	copy_done_offset = boot_trailer_copy_done(FLASH_AREA_IMAGE_1_OFFSET);
 	image_ok_offset = boot_trailer_image_ok(FLASH_AREA_IMAGE_1_OFFSET);
-	memset(copy_done, TRAILER_PADDING, sizeof(copy_done));
-	memset(image_ok, TRAILER_PADDING, sizeof(image_ok));
+	memset(&cd, PAD_VALUE, sizeof(cd));
+	memset(&ok, PAD_VALUE, sizeof(ok));
 
 	flash_write_protection_set(flash_dev, false);
-	flash_write(flash_dev, copy_done_offset, copy_done, sizeof(copy_done));
+	flash_write(flash_dev, copy_done_offset, &cd, sizeof(cd));
 	flash_write_protection_set(flash_dev, true);
 
 	flash_write_protection_set(flash_dev, false);
-	flash_write(flash_dev, image_ok_offset, image_ok, sizeof(image_ok));
+	flash_write(flash_dev, image_ok_offset, &ok, sizeof(ok));
 	flash_write_protection_set(flash_dev, true);
 }
 
