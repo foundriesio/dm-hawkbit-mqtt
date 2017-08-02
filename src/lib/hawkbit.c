@@ -36,7 +36,7 @@
 
 /*
  * TODO:
- * create a transfer lifecylce structure
+ * create a transfer lifecycle structure
  * to contain the following vars:
  * TCP receive buffer
  * tracking indexes
@@ -384,7 +384,7 @@ static void hawkbit_download_cb(struct net_context *context,
 			hbd->download_status = -1;
 		}
 		downloaded = hbd->downloaded_size * 100 /
-				hbd->http_content_size;
+			     hbd->http_content_size;
 		if (downloaded > hbd->download_progress) {
 			hbd->download_progress = downloaded;
 			SYS_LOG_DBG("%d%%", hbd->download_progress);
@@ -509,8 +509,8 @@ static int hawkbit_install_update(u8_t *tcp_buffer, size_t size,
 
 	if (hbd.downloaded_size != hbd.http_content_size) {
 		SYS_LOG_ERR("Download: downloaded image size mismatch, "
-				"downloaded %d, expecting %d",
-				hbd.downloaded_size, hbd.http_content_size);
+			    "downloaded %d, expecting %d",
+			    hbd.downloaded_size, hbd.http_content_size);
 		return -1;
 	}
 
@@ -557,10 +557,10 @@ static int hawkbit_query(u8_t *tcp_buffer, size_t size,
 	parser.data = json;
 
 	http_parser_execute(&parser, &http_settings,
-				(const char *) tcp_buffer, ret);
+			    (const char *) tcp_buffer, ret);
 	if (parser.status_code != 200) {
 		SYS_LOG_ERR("Invalid HTTP status code %d",
-						parser.status_code);
+			    parser.status_code);
 		return -1;
 	}
 
@@ -733,7 +733,7 @@ int hawkbit_ddi_poll(void)
 	}
 
 	ntk = json_parser(&json, &jsmnp, jtks,
-			sizeof(jtks) / sizeof(jsmntok_t));
+			  sizeof(jtks) / sizeof(jsmntok_t));
 	if (ntk <= 0) {
 		SYS_LOG_ERR("Error when parsing JSON from target");
 		return -1;
@@ -814,7 +814,7 @@ int hawkbit_ddi_poll(void)
 	 * assigned, so needs coordination with the deployment process.
 	 */
 	ntk = json_parser(&json, &jsmnp, jtks,
-			sizeof(jtks) / sizeof(jsmntok_t));
+			  sizeof(jtks) / sizeof(jsmntok_t));
 	if (ntk <= 0) {
 		SYS_LOG_ERR("Error when parsing JSON from deploymentBase");
 		return -1;
@@ -951,10 +951,11 @@ int hawkbit_ddi_poll(void)
 				     tcp_buf, TCP_RECV_BUF_SIZE,
 				     HAWKBIT_RESULT_SUCCESS,
 				     HAWKBIT_EXEC_PROCEEDING);
-	ret = hawkbit_install_update(tcp_buf, TCP_RECV_BUF_SIZE, download_http, file_size);
+	ret = hawkbit_install_update(tcp_buf, TCP_RECV_BUF_SIZE,
+				     download_http, file_size);
 	if (ret != 0) {
 		SYS_LOG_ERR("Failed to install the update for action ID %d",
-					json_acid);
+			    json_acid);
 		return -1;
 	}
 
