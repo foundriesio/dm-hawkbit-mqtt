@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <misc/stack.h>
-#include <net/net_context.h>
+#include <net/net_app.h>
 #include <net/net_event.h>
 #include <net/net_mgmt.h>
 
@@ -29,10 +29,26 @@
 #include "bluemix.h"
 
 #define BLUEMIX_USERNAME	"use-token-auth"
+#define MQTT_CONNECT_TRIES	10
 #define APP_CONNECT_TRIES	10
-#define APP_SLEEP_MSECS	K_MSEC(500)
+#define APP_SLEEP_MSECS		K_MSEC(500)
 #define APP_TX_RX_TIMEOUT	K_MSEC(300)
 #define MQTT_DISCONNECT_WAIT	K_MSEC(1000)
+
+/* Network configuration checks */
+#if defined(CONFIG_NET_IPV6)
+BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_PEER_IPV6_ADDR) > 1,
+		"CONFIG_NET_APP_PEER_IPV6_ADDR must be defined in boards/$(BOARD)-local.conf");
+#define BLUEMIX_SERVER_ADDR    CONFIG_NET_APP_PEER_IPV6_ADDR
+#elif defined(CONFIG_NET_IPV4)
+#if !defined(CONFIG_NET_DHCPV4)
+BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_MY_IPV4_ADDR) > 1,
+		"DHCPv4 must be enabled, or CONFIG_NET_APP_MY_IPV4_ADDR must be defined, in boards/$(BOARD)-local.conf");
+#endif
+BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_PEER_IPV4_ADDR) > 1,
+		"CONFIG_NET_APP_PEER_IPV4_ADDR must be defined in boards/$(BOARD)-local.conf");
+#define BLUEMIX_SERVER_ADDR    CONFIG_NET_APP_PEER_IPV4_ADDR
+#endif
 
 #define BLUEMIX_STACK_SIZE 1024
 static K_THREAD_STACK_DEFINE(bluemix_thread_stack, BLUEMIX_STACK_SIZE);
@@ -115,7 +131,7 @@ static int publish_message(struct bluemix_ctx *ctx)
 
 static int bluemix_start(struct bluemix_ctx *ctx)
 {
-	int ret = 0;
+	int i, ret = 0;
 
 	/* Set everything to 0 before assigning the required fields. */
 	memset(ctx, 0x00, sizeof(*ctx));
@@ -134,20 +150,12 @@ static int bluemix_start(struct bluemix_ctx *ctx)
 
 	k_sem_init(&ctx->wait_sem, 0, 1);
 
-	/*
-	 * try connecting here so that tcp_get_net_context()
-	 * will return a valid net_ctx later
-	 */
-	ret = tcp_connect(TCP_CTX_BLUEMIX);
-	if (ret < 0) {
-		return ret;
-	}
-
 	ctx->mqtt_ctx.connect = connect_cb;
 	ctx->mqtt_ctx.disconnect = disconnect_cb;
 	ctx->mqtt_ctx.malformed = malformed_cb;
 	ctx->mqtt_ctx.net_timeout = APP_TX_RX_TIMEOUT;
-	ctx->mqtt_ctx.net_ctx = tcp_get_net_context(TCP_CTX_BLUEMIX);
+	ctx->mqtt_ctx.peer_addr_str = BLUEMIX_SERVER_ADDR;
+	ctx->mqtt_ctx.peer_port = BLUEMIX_PORT;
 
 	ret = mqtt_init(&ctx->mqtt_ctx, MQTT_APP_PUBLISHER);
 	if (ret) {
@@ -168,14 +176,27 @@ static int bluemix_start(struct bluemix_ctx *ctx)
 	ctx->connect_msg.password_len = strlen(ctx->connect_msg.password);
 	ctx->connect_msg.clean_session = 1;
 
-	ret = try_to_connect(ctx);
+	for (i = 0; i < MQTT_CONNECT_TRIES; i++) {
+		ret = mqtt_connect(&ctx->mqtt_ctx);
+		if (!ret) {
+			break;
+		}
+	}
+
 	if (ret) {
 		goto out;
 	}
 
+	ret = try_to_connect(ctx);
+	if (ret) {
+		goto cleanup;
+	}
+
 	return 0;
- out:
-	tcp_cleanup(TCP_CTX_BLUEMIX, true);
+
+cleanup:
+	mqtt_close(&ctx->mqtt_ctx);
+out:
 	return ret;
 }
 
@@ -185,12 +206,17 @@ static int bluemix_fini(struct bluemix_ctx *ctx)
 
 	ret = mqtt_tx_disconnect(&ctx->mqtt_ctx);
 	if (ret) {
-		SYS_LOG_ERR("%s: mqtt_tx_disconnect: %d", __func__, ret);
+		SYS_LOG_ERR("mqtt_tx_disconnect: %d", ret);
 		goto cleanup;
 	}
 	ret = wait_for_mqtt(ctx, MQTT_DISCONNECT_WAIT);
+	if (ret) {
+		SYS_LOG_WRN("wait_for_mqtt: %d", ret);
+		/* TODO: not sure what else to do here */
+	}
+
  cleanup:
-	tcp_cleanup(TCP_CTX_BLUEMIX, true);
+	mqtt_close(&ctx->mqtt_ctx);
 	return ret;
 }
 
@@ -326,6 +352,7 @@ static void event_iface_up(struct net_mgmt_event_callback *cb,
 
 int bluemix_init(bluemix_cb bm_cb, void *bm_cb_data)
 {
+	/* TODO: default interface may not always be the one we want */
 	struct net_if *iface = net_if_get_default();
 
 	k_thread_create(&bluemix_thread_data, &bluemix_thread_stack[0],
@@ -344,5 +371,6 @@ int bluemix_init(bluemix_cb bm_cb, void *bm_cb_data)
 #endif
 
 	event_iface_up(NULL, NET_EVENT_IF_UP, iface);
+
 	return 0;
 }

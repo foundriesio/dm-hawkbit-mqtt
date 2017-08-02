@@ -13,10 +13,6 @@
 
 #define BLUEMIX_PORT	1883
 
-#define APP_CONNECT_TRIES	10
-#define APP_SLEEP_MSECS		K_MSEC(500)
-#define APP_TX_RX_TIMEOUT       K_MSEC(300)
-
 #define CONFIG_FOTA_BLUEMIX_DEVICE_TYPE	CONFIG_BOARD
 
 struct bluemix_ctx;
