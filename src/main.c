@@ -32,9 +32,6 @@
 #if defined(CONFIG_FOTA_BLUEMIX)
 #include "bluemix_temperature.h"
 #endif
-#if defined(CONFIG_NET_TCP)
-#include "tcp.h"
-#endif
 
 /*
  * GPIOs. These can be customized by device if needed.
@@ -120,16 +117,6 @@ void main(void)
 		    product_id_get()->name, product_id_get()->number);
 
 	TC_START("Running Built in Self Test (BIST)");
-
-#if defined(CONFIG_NET_TCP)
-	TC_PRINT("Initializing TCP\n");
-	if (tcp_init()) {
-		_TC_END_RESULT(TC_FAIL, "tcp_init");
-		TC_END_REPORT(TC_FAIL);
-		return;
-	}
-	_TC_END_RESULT(TC_PASS, "tcp_init");
-#endif
 
 #if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
 	TC_PRINT("Initializing Hawkbit backend\n");
