@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Linaro Limited
+ * Copyright (c) 2016-2017 Linaro Limited
  *
  * SPDX-License-Identifier: Apache-2.0
  */
