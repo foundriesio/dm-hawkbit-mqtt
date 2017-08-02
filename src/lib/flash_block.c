@@ -15,8 +15,6 @@
 #include <errno.h>
 #include <flash.h>
 
-#include "tcp.h"
-
 /*
  * TODO:
  * create flash_block lifecycle struct which contains:
@@ -31,19 +29,17 @@
 
 #define BLOCK_BUFFER_SIZE	512
 
+u8_t verify_buf[BLOCK_BUFFER_SIZE];
 u8_t flash_buf[BLOCK_BUFFER_SIZE];
 static u16_t flash_bytes;
 
-extern u8_t tcp_buf[TCP_RECV_BUF_SIZE];
-
-/* TODO: remove use of tcp_buf */
 static bool flash_block_verify(struct device *dev, off_t offset,
 			 u8_t *data, int len)
 {
 	int i, rc;
 
-	memset(tcp_buf, 0x00, TCP_RECV_BUF_SIZE);
-	rc = flash_read(dev, offset, tcp_buf, len);
+	memset(verify_buf, 0x00, len);
+	rc = flash_read(dev, offset, verify_buf, len);
 	if (rc) {
 		SYS_LOG_ERR("flash_read error %d location=0x%08x, len=%d",
 			    rc, offset, len);
@@ -51,7 +47,7 @@ static bool flash_block_verify(struct device *dev, off_t offset,
 	}
 
 	for (i = 0; i < len; i++) {
-		if (data[i] != tcp_buf[i]) {
+		if (data[i] != verify_buf[i]) {
 			SYS_LOG_ERR("offset=0x%x, index=%d/%d VERIFY FAIL",
 				    offset, i, len);
 			break;
