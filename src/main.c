@@ -14,6 +14,7 @@
 #include <tc_util.h>
 #include <misc/reboot.h>
 #include <board.h>
+#include <init.h>
 
 /* Local helpers and functions */
 #include "tstamp_log.h"
@@ -111,10 +112,6 @@ static void blink_handler(struct k_work *work)
 
 void main(void)
 {
-#if defined(CONFIG_BLUETOOTH)
-	int err;
-#endif
-
 	tstamp_hook_install();
 	app_wq_init();
 
@@ -123,43 +120,6 @@ void main(void)
 		    product_id_get()->name, product_id_get()->number);
 
 	TC_START("Running Built in Self Test (BIST)");
-
-#if defined(CONFIG_BLUETOOTH)
-	/* Storage used to provide a BT MAC based on the serial number */
-	TC_PRINT("Setting Bluetooth MAC\n");
-	bt_storage_init();
-
-	TC_PRINT("Enabling Bluetooth\n");
-	err = bt_enable(NULL);
-	if (err) {
-		SYS_LOG_ERR("Bluetooth init failed: %d", err);
-		_TC_END_RESULT(TC_FAIL, "bt_enable");
-		TC_END_REPORT(TC_FAIL);
-		return;
-	}
-	_TC_END_RESULT(TC_PASS, "bt_enable");
-
-	/* Callbacks for BT LE connection state */
-	TC_PRINT("Registering Bluetooth LE connection callbacks\n");
-	err = ipss_init(&conn_callbacks);
-	if (err) {
-		SYS_LOG_ERR("BT GATT attributes failed to set: %d", err);
-		_TC_END_RESULT(TC_FAIL, "ipss_init");
-		TC_END_REPORT(TC_FAIL);
-		return;
-	}
-	_TC_END_RESULT(TC_PASS, "ipss_init");
-
-	TC_PRINT("Advertising Bluetooth IP Profile\n");
-	err = ipss_advertise();
-	if (err) {
-		SYS_LOG_ERR("Advertising failed to start: %d", err);
-		_TC_END_RESULT(TC_FAIL, "ipss_advertise");
-		TC_END_REPORT(TC_FAIL);
-		return;
-	}
-	_TC_END_RESULT(TC_PASS, "ipss_advertise");
-#endif
 
 #if defined(CONFIG_NET_TCP)
 	TC_PRINT("Initializing TCP\n");
@@ -212,3 +172,49 @@ void main(void)
 	 */
 	app_wq_run();
 }
+
+#if defined(CONFIG_NET_L2_BLUETOOTH)
+static int network_init(struct device *dev)
+{
+	int err;
+
+	/* Storage used to provide a BT MAC based on the serial number */
+	TC_PRINT("Setting Bluetooth MAC\n");
+	bt_storage_init();
+
+	TC_PRINT("Enabling Bluetooth\n");
+	err = bt_enable(NULL);
+	if (err) {
+		SYS_LOG_ERR("Bluetooth init failed: %d", err);
+		_TC_END_RESULT(TC_FAIL, "bt_enable");
+		TC_END_REPORT(TC_FAIL);
+		return -1;
+	}
+	_TC_END_RESULT(TC_PASS, "bt_enable");
+
+	/* Callbacks for BT LE connection state */
+	TC_PRINT("Registering Bluetooth LE connection callbacks\n");
+	err = ipss_init(&conn_callbacks);
+	if (err) {
+		SYS_LOG_ERR("BT GATT attributes failed to set: %d", err);
+		_TC_END_RESULT(TC_FAIL, "ipss_init");
+		TC_END_REPORT(TC_FAIL);
+		return -1;
+	}
+	_TC_END_RESULT(TC_PASS, "ipss_init");
+
+	TC_PRINT("Advertising Bluetooth IP Profile\n");
+	err = ipss_advertise();
+	if (err) {
+		SYS_LOG_ERR("Advertising failed to start: %d", err);
+		_TC_END_RESULT(TC_FAIL, "ipss_advertise");
+		TC_END_REPORT(TC_FAIL);
+		return -1;
+	}
+	_TC_END_RESULT(TC_PASS, "ipss_advertise");
+	return 0;
+}
+
+/* last priority in the POST_KERNEL init levels */
+SYS_INIT(network_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
+#endif
