@@ -332,8 +332,7 @@ static void bluemix_service(void *bm_cbv, void *bm_cb_data, void *p3)
 
 		tcp_interface_unlock();
 
-		stack_analyze("Bluemix Thread", bluemix_thread_stack,
-			      K_THREAD_STACK_SIZEOF(bluemix_thread_stack));
+		STACK_ANALYZE("Bluemix Thread", bluemix_thread_stack);
 	}
 
  out_close:

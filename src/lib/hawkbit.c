@@ -968,8 +968,7 @@ static void hawkbit_service(void)
 
 		tcp_interface_unlock();
 
-		stack_analyze("Hawkbit Thread", hawkbit_thread_stack,
-			      K_THREAD_STACK_SIZEOF(hawkbit_thread_stack));
+		STACK_ANALYZE("Hawkbit Thread", hawkbit_thread_stack);
 	} while (1);
 }
 
