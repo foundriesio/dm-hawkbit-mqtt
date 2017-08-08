@@ -24,7 +24,6 @@
 #if defined(CONFIG_BLUETOOTH)
 #include <bluetooth/conn.h>
 #include "bt_storage.h"
-#include "bt_ipss.h"
 #endif
 #if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
 #include "hawkbit.h"
@@ -78,11 +77,6 @@ static void connected(struct bt_conn *conn, u8_t err)
 	} else {
 		SYS_LOG_INF("BT LE Connected");
 		set_bluetooth_led(1);
-		err = ipss_set_connected();
-		if (err) {
-			SYS_LOG_ERR("BT LE connection name change failed: %u",
-				    err);
-		}
 	}
 }
 
@@ -163,42 +157,10 @@ void main(void)
 #if defined(CONFIG_NET_L2_BLUETOOTH)
 static int network_init(struct device *dev)
 {
-	int err;
-
 	/* Storage used to provide a BT MAC based on the serial number */
 	TC_PRINT("Setting Bluetooth MAC\n");
 	bt_storage_init();
-
-	TC_PRINT("Enabling Bluetooth\n");
-	err = bt_enable(NULL);
-	if (err) {
-		SYS_LOG_ERR("Bluetooth init failed: %d", err);
-		_TC_END_RESULT(TC_FAIL, "bt_enable");
-		TC_END_REPORT(TC_FAIL);
-		return -1;
-	}
-	_TC_END_RESULT(TC_PASS, "bt_enable");
-
-	/* Callbacks for BT LE connection state */
-	TC_PRINT("Registering Bluetooth LE connection callbacks\n");
-	err = ipss_init(&conn_callbacks);
-	if (err) {
-		SYS_LOG_ERR("BT GATT attributes failed to set: %d", err);
-		_TC_END_RESULT(TC_FAIL, "ipss_init");
-		TC_END_REPORT(TC_FAIL);
-		return -1;
-	}
-	_TC_END_RESULT(TC_PASS, "ipss_init");
-
-	TC_PRINT("Advertising Bluetooth IP Profile\n");
-	err = ipss_advertise();
-	if (err) {
-		SYS_LOG_ERR("Advertising failed to start: %d", err);
-		_TC_END_RESULT(TC_FAIL, "ipss_advertise");
-		TC_END_REPORT(TC_FAIL);
-		return -1;
-	}
-	_TC_END_RESULT(TC_PASS, "ipss_advertise");
+	bt_conn_cb_register(&conn_callbacks);
 	return 0;
 }
 
