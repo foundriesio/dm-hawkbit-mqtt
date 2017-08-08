@@ -1,3 +1,5 @@
+ccflags-y +=-I${SOURCE_DIR}/lib
+
 obj-$(CONFIG_FOTA_DM_BACKEND_HAWKBIT) += hawkbit.o
 obj-$(CONFIG_FOTA_DM_BACKEND_HAWKBIT) += jsmn.o
 obj-$(CONFIG_FOTA_DM_BACKEND_HAWKBIT) += flash_block.o
