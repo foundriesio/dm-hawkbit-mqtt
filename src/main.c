@@ -21,7 +21,7 @@
 #include "app_work_queue.h"
 #include "mcuboot.h"
 #include "product_id.h"
-#if defined(CONFIG_BLUETOOTH)
+#if defined(CONFIG_BT)
 #include <bluetooth/conn.h>
 #include "bt_storage.h"
 #endif
@@ -57,7 +57,7 @@ static struct blink_ctx blink_context = {
 	.count = 0,
 };
 
-#if defined(CONFIG_BLUETOOTH)
+#if defined(CONFIG_BT)
 /* BT LE Connect/Disconnect callbacks */
 static void set_bluetooth_led(bool state)
 {
@@ -154,7 +154,7 @@ void main(void)
 	app_wq_run();
 }
 
-#if defined(CONFIG_NET_L2_BLUETOOTH)
+#if defined(CONFIG_NET_L2_BT)
 static int network_init(struct device *dev)
 {
 	/* Storage used to provide a BT MAC based on the serial number */
