@@ -334,8 +334,8 @@ static void install_update_cb(struct http_client_ctx *ctx,
 	size_t body_len = 0;
 
 	/* HTTP error */
-	if (strncmp(ctx->rsp.http_status, "OK", 2) != 0) {
-		SYS_LOG_ERR("HTTP error: %s!", ctx->rsp.http_status);
+	if (ctx->parser.status_code != 200) {
+		SYS_LOG_ERR("HTTP error: %d!", ctx->parser.status_code);
 		goto error;
 	}
 
@@ -516,9 +516,9 @@ static int hawkbit_query(struct hawkbit_context *hb_ctx,
 		goto cleanup;
 	}
 
-	if (strncmp(hb_ctx->http_ctx.rsp.http_status, "OK", 2)) {
-		SYS_LOG_ERR("Invalid HTTP status code [%s]",
-			    hb_ctx->http_ctx.rsp.http_status);
+	if (hb_ctx->http_ctx.parser.status_code != 200) {
+		SYS_LOG_ERR("Invalid HTTP status code [%d]",
+			    hb_ctx->http_ctx.parser.status_code);
 		ret = -1;
 		goto cleanup;
 	}
