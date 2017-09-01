@@ -124,9 +124,16 @@ static int try_to_connect(struct bluemix_ctx *ctx)
 
 static int publish_message(struct bluemix_ctx *ctx)
 {
+	int ret;
+
 	SYS_LOG_DBG("topic: %s", ctx->pub_msg.topic);
 	SYS_LOG_DBG("message: %s", ctx->pub_msg.msg);
-	return mqtt_tx_publish(&ctx->mqtt_ctx, &ctx->pub_msg);
+	ret = mqtt_tx_publish(&ctx->mqtt_ctx, &ctx->pub_msg);
+	if (ret) {
+		SYS_LOG_ERR("publish failed: %d", ret);
+	}
+
+	return ret;
 }
 
 static int bluemix_start(struct bluemix_ctx *ctx)
