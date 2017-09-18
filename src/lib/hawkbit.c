@@ -124,7 +124,7 @@ typedef enum {
 	HAWKBIT_ACID_UPDATE,
 } hawkbit_dev_acid_t;
 
-#define HAWKBIT_RX_TIMEOUT	K_SECONDS(3)
+#define HAWKBIT_RX_TIMEOUT	K_SECONDS(10)
 
 #define HAWKBIT_STACK_SIZE 3840
 static K_THREAD_STACK_DEFINE(hawkbit_thread_stack, HAWKBIT_STACK_SIZE);
