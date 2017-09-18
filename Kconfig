@@ -93,20 +93,3 @@ config FOTA_SHELL
 	default y
 	help
 	  The option adds a new "fota" command to the console shell.
-
-choice
-	prompt "Select IoT device management system"
-	default FOTA_DM_BACKEND_HAWKBIT
-	help
-	  FOTA device management system. Currently, hawkBit is supported.
-
-config FOTA_DM_BACKEND_HAWKBIT
-	bool "Hawkbit Device Management"
-	depends on NET_TCP
-	help
-	  hawkBit is a domain independent back-end framework for rolling
-	  out software updates to constrained edge devices as well as more
-	  powerful controllers and gateways connected to IP based networking
-	  infrastructure.
-
-endchoice

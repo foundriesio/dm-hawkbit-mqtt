@@ -25,9 +25,7 @@
 #include <bluetooth/conn.h>
 #include "bt_storage.h"
 #endif
-#if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
 #include "hawkbit.h"
-#endif
 #if defined(CONFIG_FOTA_BLUEMIX)
 #include "bluemix_temperature.h"
 #endif
@@ -112,7 +110,6 @@ void main(void)
 
 	TC_START("Running Built in Self Test (BIST)");
 
-#if defined(CONFIG_FOTA_DM_BACKEND_HAWKBIT)
 	TC_PRINT("Initializing Hawkbit backend\n");
 	if (hawkbit_init()) {
 		_TC_END_RESULT(TC_FAIL, "hawkbit_init");
@@ -120,7 +117,6 @@ void main(void)
 		return;
 	}
 	_TC_END_RESULT(TC_PASS, "hawkbit_init");
-#endif
 
 #if defined(CONFIG_FOTA_BLUEMIX)
 	TC_PRINT("Initializing Bluemix Client service\n");
