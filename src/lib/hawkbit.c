@@ -12,6 +12,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <misc/byteorder.h>
 #include <flash.h>
@@ -22,11 +23,12 @@
 #include <net/net_app.h>
 #include <net/net_event.h>
 #include <net/net_mgmt.h>
+#include <json.h>
 
 #include <soc.h>
 
-#include "jsmn.h"
 #include "hawkbit.h"
+#include "hawkbit_priv.h"
 #include "mcuboot.h"
 #include "flash_block.h"
 #include "product_id.h"
@@ -93,17 +95,6 @@ struct json_data_t {
 	size_t len;
 };
 
-struct http_download_t {
-	size_t header_size;
-	size_t content_length;
-};
-
-typedef enum {
-	HAWKBIT_UPDATE_SKIP = 0,
-	HAWKBIT_UPDATE_ATTEMPT,
-	HAWKBIT_UPDATE_FORCED
-} hawkbit_update_action_t;
-
 typedef enum {
 	HAWKBIT_RESULT_SUCCESS = 0,
 	HAWKBIT_RESULT_FAILURE,
@@ -167,6 +158,101 @@ static struct net_buf_pool *data_pool(void)
 #define data_pool NULL
 #endif /* CONFIG_NET_CONTEXT_NET_PKT_POOL */
 
+/*
+ * Descriptors for mapping between JSON and structure representations.
+ */
+
+static const struct json_obj_descr json_href_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_href, href, JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr json_ctl_res_sleep_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_ctl_res_sleep, sleep,
+			    JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr json_ctl_res_polling_descr[] = {
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_ctl_res_polling, polling,
+			      json_ctl_res_sleep_descr),
+};
+
+static const struct json_obj_descr json_ctl_res_links_descr[] = {
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_ctl_res_links, deploymentBase,
+			      json_href_descr),
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_ctl_res_links, cancelAction,
+			      json_href_descr),
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_ctl_res_links, configData,
+			      json_href_descr),
+};
+
+static const struct json_obj_descr json_ctl_res_descr[] = {
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_ctl_res, config,
+			      json_ctl_res_polling_descr),
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_ctl_res, _links,
+			      json_ctl_res_links_descr),
+};
+
+static const struct json_obj_descr json_dep_res_hashes_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_dep_res_hashes, sha1,
+			    JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_dep_res_hashes, md5,
+			    JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr json_dep_res_links_descr[] = {
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_dep_res_links, download,
+			      json_href_descr),
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_dep_res_links, md5sum,
+			      json_href_descr),
+	JSON_OBJ_DESCR_OBJECT_NAMED(struct hawkbit_dep_res_links,
+				    "download-http", download_http,
+				    json_href_descr),
+	JSON_OBJ_DESCR_OBJECT_NAMED(struct hawkbit_dep_res_links,
+				    "md5sum-http", md5sum_http,
+				    json_href_descr),
+};
+
+static const struct json_obj_descr json_dep_res_arts_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_dep_res_arts, filename,
+			    JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_dep_res_arts, size,
+			    JSON_TOK_NUMBER),
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_dep_res_arts, hashes,
+			      json_dep_res_hashes_descr),
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_dep_res_arts, _links,
+			      json_dep_res_links_descr),
+};
+
+static const struct json_obj_descr json_dep_res_chunk_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_dep_res_chunk, part,
+			    JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_dep_res_chunk, name,
+			    JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_dep_res_chunk, version,
+			    JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJ_ARRAY(struct hawkbit_dep_res_chunk, artifacts,
+				 HAWKBIT_DEP_MAX_CHUNK_ARTS, num_artifacts,
+				 json_dep_res_arts_descr,
+				 ARRAY_SIZE(json_dep_res_arts_descr)),
+};
+
+static const struct json_obj_descr json_dep_res_deploy_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_dep_res_deploy, download,
+			    JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_dep_res_deploy, update,
+			    JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJ_ARRAY(struct hawkbit_dep_res_deploy, chunks,
+				 HAWKBIT_DEP_MAX_CHUNKS, num_chunks,
+				 json_dep_res_chunk_descr,
+				 ARRAY_SIZE(json_dep_res_chunk_descr)),
+};
+
+static const struct json_obj_descr json_dep_res_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_dep_res, id, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_dep_res, deployment,
+			      json_dep_res_deploy_descr),
+};
+
 /* Utils */
 static int atoi_n(const char *s, int len)
 {
@@ -180,48 +266,6 @@ static int atoi_n(const char *s, int len)
 	}
 
         return val;
-}
-
-static int jsoneq(const char *json, jsmntok_t *tok, const char *s)
-{
-	if (tok->type == JSMN_STRING &&
-		(int) strlen(s) == tok->end - tok->start &&
-		strncmp(json + tok->start, s, tok->end - tok->start) == 0) {
-		return 1;
-	}
-	return 0;
-}
-
-static int json_parser(struct json_data_t *json, jsmn_parser *parser,
-		       jsmntok_t *tks, u16_t num_tokens)
-{
-	int ret = 0;
-
-	SYS_LOG_DBG("JSON: max tokens supported %d", num_tokens);
-
-	jsmn_init(parser);
-	ret = jsmn_parse(parser, json->data, json->len, tks, num_tokens);
-	if (ret < 0) {
-		switch (ret) {
-		case JSMN_ERROR_NOMEM:
-			SYS_LOG_ERR("JSON: Not enough tokens");
-			break;
-		case JSMN_ERROR_INVAL:
-			SYS_LOG_ERR("JSON: Invalid character found");
-			break;
-		case JSMN_ERROR_PART:
-			SYS_LOG_ERR("JSON: Incomplete JSON");
-			break;
-		}
-		return ret;
-	} else if (ret == 0 || tks[0].type != JSMN_OBJECT) {
-		SYS_LOG_ERR("JSON: First token is not an object");
-		return 0;
-	}
-
-	SYS_LOG_DBG("JSON: %d tokens found", ret);
-
-	return ret;
 }
 
 static int hawkbit_time2sec(const char *s)
@@ -544,6 +588,26 @@ cleanup:
 	return ret;
 }
 
+/*
+ * Update sleep interval, based on results from hawkBit base polling
+ * resource.
+ */
+static void hawkbit_update_sleep(struct hawkbit_ctl_res *hawkbit_res)
+{
+	const char *sleep = hawkbit_res->config.polling.sleep;
+	int len;
+
+	if (strlen(sleep) != HAWKBIT_SLEEP_LENGTH) {
+		SYS_LOG_ERR("invalid poll sleep: %s", sleep);
+	} else {
+		len = hawkbit_time2sec(sleep);
+		if (len > 0 && poll_sleep != K_SECONDS(len)) {
+			SYS_LOG_INF("New poll sleep %d seconds", len);
+			poll_sleep = K_SECONDS(len);
+		}
+	}
+}
+
 static int hawkbit_report_config_data(struct hawkbit_context *hb_ctx)
 {
 	const struct product_id_t *product_id = product_id_get();
@@ -580,6 +644,115 @@ static int hawkbit_report_config_data(struct hawkbit_context *hb_ctx)
 		return -1;
 	}
 
+	return 0;
+}
+
+/*
+ * Find URL component for this device's deployment operations
+ * resource.
+ */
+static int hawkbit_find_deployment_base(struct hawkbit_ctl_res *res,
+					char *deployment_base,
+					size_t deployment_base_size)
+{
+	const char *href;
+	const char *helper;
+	size_t len;
+
+	href = res->_links.deploymentBase.href;
+	if (!href) {
+		/* A missing deployment base is not an error. */
+		*deployment_base = '\0';
+		return 0;
+	}
+	helper = strstr(href, "deploymentBase/");
+	if (!helper) {
+		/* A badly formatted deployment base is a server error. */
+		SYS_LOG_ERR("missing deploymentBase/ in href %s", href);
+		return -EINVAL;
+	}
+	len = strlen(helper);
+	if (len > deployment_base_size - 1) {
+		/* Lack of memory is an application error. */
+		SYS_LOG_ERR("deploymentBase %s is too big (len %zu, max %zu)",
+			    helper, len, deployment_base_size - 1);
+		return -ENOMEM;
+	}
+	strncpy(deployment_base, helper, deployment_base_size);
+	return 0;
+}
+
+/*
+ * Parse the results of polling the deployment operations resource.
+ */
+static int hawkbit_parse_deployment(struct hawkbit_dep_res *res,
+				    int *json_acid,
+				    char *download_http,
+				    size_t download_http_size,
+				    s32_t *file_size)
+{
+	const char *href;
+	const char *helper;
+	size_t len;
+	struct hawkbit_dep_res_chunk *chunk;
+	struct hawkbit_dep_res_arts *artifact;
+	size_t num_chunks, num_artifacts;
+	s32_t acid, size;
+
+	acid = strtol(res->id, NULL, 10);
+	if (acid < 0) {
+		SYS_LOG_ERR("negative action ID %d", acid);
+		return -EINVAL;
+	}
+	num_chunks = res->deployment.num_chunks;
+	if (num_chunks != 1) {
+		SYS_LOG_ERR("expecting one chunk (got %d)", num_chunks);
+		return -ENOSPC;
+	}
+	chunk = &res->deployment.chunks[0];
+	if (strcmp("os", chunk->part)) {
+		SYS_LOG_ERR("only part 'os' is supported; got %s", chunk->part);
+		return -EINVAL;
+	}
+	num_artifacts = chunk->num_artifacts;
+	if (num_artifacts != 1) {
+		SYS_LOG_ERR("expecting one artifact (got %d)", num_artifacts);
+		return -EINVAL;
+	}
+	artifact = &chunk->artifacts[0];
+	size = artifact->size;
+	if (size > FLASH_BANK_SIZE) {
+		SYS_LOG_ERR("artifact file size too big (got %d, max is %d)",
+			    size, FLASH_BANK_SIZE);
+		return -ENOSPC;
+	}
+	/*
+	 * Find the download-http href. We only support the DEFAULT
+	 * tenant on the same hawkBit server.
+	 */
+	href = artifact->_links.download_http.href;
+	if (!href) {
+		SYS_LOG_ERR("missing expected download-http href");
+		return -EINVAL;
+	}
+	helper = strstr(href, "/DEFAULT/controller/v1");
+	if (!helper) {
+		SYS_LOG_ERR("unexpected download-http href format: %s", helper);
+		return -EINVAL;
+	}
+	len = strlen(helper);
+	if (len == 0) {
+		SYS_LOG_ERR("empty download-http");
+		return -EINVAL;
+	} else if (len > download_http_size - 1) {
+		SYS_LOG_ERR("download-http %s is too big (len: %zu, max: %zu)",
+			    helper, len, download_http_size - 1);
+		return -ENOMEM;
+	}
+	/* Success. */
+	*json_acid = acid;
+	strncpy(download_http, helper, download_http_size);
+	*file_size = size;
 	return 0;
 }
 
@@ -663,20 +836,31 @@ static int hawkbit_report_update_status(struct hawkbit_context *hb_ctx,
 
 static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 {
-	jsmn_parser jsmnp;
-	jsmntok_t jtks[60];	/* Enough for one artifact per SM */
-	int i, ret, len, ntk;
-	static hawkbit_update_action_t hawkbit_update_action;
-	static int json_acid;
-	struct hawkbit_device_acid device_acid;
-	struct json_data_t json = { NULL, 0 };
+	/*
+	 * "Raw" decoded JSON objects.
+	 */
+	union {
+		struct hawkbit_ctl_res base; /* Base resource. */
+		struct hawkbit_dep_res dep;  /* Deployment operations. */
+	} hawkbit_results;
+	/*
+	 * Cached hawkBit base resource results.
+	 */
 	char deployment_base[40];	/* TODO: Find a better value */
 	char download_http[200];	/* TODO: Find a better value */
-	bool update_config_data = false;
-	int file_size = 0;
-	char *helper;
+	static int json_acid;
+	s32_t file_size = 0;
+	/*
+	 * Etc.
+	 */
+	struct hawkbit_device_acid device_acid;
+	struct json_data_t json = { NULL, 0 };
 	const struct product_id_t *product_id = product_id_get();
+	int ret;
 
+	/*
+	 * Query the hawkBit base polling resource.
+	 */
 	SYS_LOG_DBG("Polling target data from Hawkbit");
 
 	/* Build URL */
@@ -696,61 +880,44 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 		return ret;
 	}
 
-	ntk = json_parser(&json, &jsmnp, jtks,
-			  sizeof(jtks) / sizeof(jsmntok_t));
-	if (ntk <= 0) {
-		SYS_LOG_ERR("Error when parsing JSON from target");
-		return -1;
+	/*
+	 * Decode the results from the base polling resource, finding
+	 * the hawkBit DDI v1 deployment base in the returned result.
+	 */
+	memset(&hawkbit_results.base, 0, sizeof(hawkbit_results.base));
+	ret = json_obj_parse(json.data, json.len, json_ctl_res_descr,
+			     ARRAY_SIZE(json_ctl_res_descr),
+			     &hawkbit_results.base);
+	if (ret < 0) {
+		SYS_LOG_ERR("JSON parse error %d polling base resource", ret);
+		return ret;
+	}
+	if (hawkbit_results.base.config.polling.sleep) {
+		/* Update the sleep time. */
+		hawkbit_update_sleep(&hawkbit_results.base);
+	}
+	if (hawkbit_results.base._links.cancelAction.href) {
+		/* TODO: implement cancelAction logic. */
+		SYS_LOG_WRN("Ignoring cancelAction (href %s)",
+			    hawkbit_results.base._links.cancelAction.href);
+	}
+	ret = hawkbit_find_deployment_base(&hawkbit_results.base,
+					   deployment_base,
+					   sizeof(deployment_base));
+	if (ret < 0) {
+		return ret;
 	}
 
-	/* Hawkbit DDI v1 targetid */
-	memset(deployment_base, 0, sizeof(deployment_base));
-	/* TODO: Implement cancel action logic */
-	for (i = 1; i < ntk - 1; i++) {
-		/* config -> polling -> sleep */
-		if (jsoneq(json.data, &jtks[i], "config") &&
-				(i + 5 < ntk) &&
-				(jsoneq(json.data, &jtks[i + 4], "sleep"))) {
-			/* Sleep format: HH:MM:SS */
-			if (jtks[i + 5].end - jtks[i + 5].start > 8) {
-				SYS_LOG_ERR("Invalid poll sleep string");
-				continue;
-			}
-			len = hawkbit_time2sec(json.data + jtks[i + 5].start);
-			if (len > 0 &&
-				poll_sleep != K_SECONDS(len)) {
-				SYS_LOG_INF("New poll sleep %d seconds", len);
-				poll_sleep = K_SECONDS(len);
-				i += 5;
-			}
-		} else if (jsoneq(json.data, &jtks[i], "deploymentBase") &&
-				(i + 3 < ntk) &&
-				(jsoneq(json.data, &jtks[i + 2], "href"))) {
-			/* Just extract the deploymentBase piece */
-			helper = strstr(json.data + jtks[i + 3].start,
-							"deploymentBase/");
-			if (helper == NULL ||
-					helper > json.data + jtks[i + 3].end) {
-				continue;
-			}
-			len = json.data + jtks[i + 3].end - helper;
-			memcpy(&deployment_base, helper, len);
-			deployment_base[len] = '\0';
-			SYS_LOG_DBG("Deployment base %s", deployment_base);
-			i += 3;
-		} else if (jsoneq(json.data, &jtks[i], "configData") &&
-				(i + 3 < ntk) &&
-				(jsoneq(json.data, &jtks[i + 2], "href"))) {
-			update_config_data = true;
-			i += 3;
-		}
-	}
-
-	/* Update config data if the server asked for it */
-	if (update_config_data) {
+	/* Provide this device's config data if the server asked for it. */
+	if (hawkbit_results.base._links.configData.href) {
 		hawkbit_report_config_data(hb_ctx);
 	}
 
+	/*
+	 * If one was found, poll the deployment base discovered
+	 * earlier. If there was no deployment base, there is nothing
+	 * else to do.
+	 */
 	if (strlen(deployment_base) == 0) {
 		SYS_LOG_DBG("No deployment base found, no actions to take");
 		return 0;
@@ -775,109 +942,41 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 		return -1;
 	}
 
-	/* We have our own limit here, which is directly affected by the
-	 * number of artifacts available as part of the software module
-	 * assigned, so needs coordination with the deployment process.
+	/*
+	 * Decode results from the deployment operations resource.
 	 */
-	ntk = json_parser(&json, &jsmnp, jtks,
-			  sizeof(jtks) / sizeof(jsmntok_t));
-	if (ntk <= 0) {
-		SYS_LOG_ERR("Error when parsing JSON from deploymentBase");
-		return -1;
-	}
 
-	ret = 0;
-	memset(download_http, 0, sizeof(download_http));
-	for (i = 1; i < ntk - 1; i++) {
-		if (jsoneq(json.data, &jtks[i], "id")) {
-			/* id -> id */
-			json_acid = atoi_n(json.data + jtks[i + 1].start,
-					jtks[i + 1].end - jtks[i + 1].start);
-			SYS_LOG_DBG("Hawkbit ACTION ID %d", json_acid);
-			i += 1;
-		} else if (jsoneq(json.data, &jtks[i], "deployment")) {
-			/* deployment -> download, update or chunks */
-			if (i + 5 >= ntk) {
-				continue;
-			}
-			/* Check just the first 2 keys, since chunk is [] */
-			if (jsoneq(json.data, &jtks[i + 2], "update")) {
-				i += 3;
-			} else if (jsoneq(json.data, &jtks[i + 4], "update")) {
-				i += 5;
-			} else {
-				continue;
-			}
-			/* Now just find the update action */
-			if (jsoneq(json.data, &jtks[i], "skip")) {
-				hawkbit_update_action = HAWKBIT_UPDATE_SKIP;
-				SYS_LOG_DBG("Hawkbit update action: SKIP");
-			} else if (jsoneq(json.data, &jtks[i], "attempt")) {
-				hawkbit_update_action = HAWKBIT_UPDATE_ATTEMPT;
-				SYS_LOG_DBG("Hawkbit update action: ATTEMPT");
-			} else if (jsoneq(json.data, &jtks[i], "forced")) {
-				hawkbit_update_action = HAWKBIT_UPDATE_FORCED;
-				SYS_LOG_DBG("Hawkbit update action: FORCED");
-			}
-		} else if (jsoneq(json.data, &jtks[i], "chunks")) {
-			if (jtks[i + 1].type != JSMN_ARRAY) {
-				continue;
-			}
-			if (jtks[i + 1].size != 1) {
-				SYS_LOG_ERR("Only one chunk is supported, %d",
-							jtks[i + 1].size);
-				ret = -1;
-				break;
-			}
-			i += 1;
-		} else if (jsoneq(json.data, &jtks[i], "part")) {
-			if (!jsoneq(json.data, &jtks[i + 1], "os")) {
-				SYS_LOG_ERR("Only part 'os' is supported");
-				ret = -1;
-				break;
-			}
-			i += 1;
-		} else if (jsoneq(json.data, &jtks[i], "size")) {
-			file_size = atoi_n(json.data + jtks[i + 1].start,
-					jtks[i + 1].end - jtks[i + 1].start);
-			SYS_LOG_DBG("Artifact file size: %d", file_size);
-			i += 1;
-		} else if (jsoneq(json.data, &jtks[i], "download-http")) {
-			/* We just support DEFAULT tenant on the same server */
-			if (i + 3 >= ntk ||
-				!jsoneq(json.data, &jtks[i + 2], "href")) {
-				SYS_LOG_ERR("No href entry for download-http");
-				ret = -1;
-				continue;
-			}
-			/* Extracting everying after server address */
-			helper = strstr(json.data + jtks[i + 3].start,
-						"/DEFAULT/controller/v1");
-			if (helper == NULL ||
-					helper > json.data + jtks[i + 3].end) {
-				continue;
-			}
-			len = json.data + jtks[i + 3].end - helper;
-			if (len >= sizeof(download_http)) {
-				SYS_LOG_ERR("Download HREF too big (%d)", len);
-				ret = - 1;
-				continue;
-			}
-			memcpy(&download_http, helper, len);
-			download_http[len] = '\0';
-			SYS_LOG_DBG("Artifact address: %s", download_http);
-			i += 3;
-		}
-	}
-
-	if (json_acid < 0) {
-		SYS_LOG_ERR("Invalid (negative) action ID %d", json_acid);
+	memset(&hawkbit_results.dep, 0, sizeof(hawkbit_results.dep));
+	ret = json_obj_parse(json.data, json.len, json_dep_res_descr,
+			     ARRAY_SIZE(json_dep_res_descr),
+			     &hawkbit_results.dep);
+	if (ret < 0) {
+		SYS_LOG_ERR("deploymentBase JSON parse error %d", ret);
+		goto report_error;
+	} else if (ret != (1 << ARRAY_SIZE(json_dep_res_descr)) - 1) {
+		SYS_LOG_ERR("deploymentBase JSON mismatch"
+			    " (expected 0x%x, got 0x%x)",
+			    (1 << ARRAY_SIZE(json_dep_res_descr)) - 1, ret);
 		ret = -EINVAL;
 		goto report_error;
 	}
 
-	hawkbit_device_acid_read(&device_acid);
+	ret = hawkbit_parse_deployment(&hawkbit_results.dep, &json_acid,
+				       download_http, sizeof(download_http),
+				       &file_size);
+	if (ret) {
+		goto report_error;
+	}
 
+	/* TODO: handle download/update. */
+	SYS_LOG_DBG("action ID: %d", json_acid);
+	SYS_LOG_DBG("deployment: download %s, update %s (ignored)",
+		    hawkbit_results.dep.deployment.download,
+		    hawkbit_results.dep.deployment.update);
+	SYS_LOG_DBG("artifact address: %s", download_http);
+	SYS_LOG_DBG("artifact file size: %d", file_size);
+
+	hawkbit_device_acid_read(&device_acid);
 	if (device_acid.current == json_acid) {
 		/* We are coming from a successful flash, update the server */
 		hawkbit_report_update_status(hb_ctx, json_acid,
@@ -893,21 +992,6 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 		SYS_LOG_ERR("Preventing repeated attempt to install %d",
 			    json_acid);
 		ret = -EALREADY;
-		goto report_error;
-	} else if (strlen(download_http) == 0) {
-		/*
-		 * This usually happens when the artifact upload to
-		 * the hawkBit server failed, e.g. due to passing a
-		 * script an invalid filename. Handle it as an error.
-		 */
-		SYS_LOG_ERR("No download http address found, no action");
-		ret = -ENOENT;
-		goto report_error;
-	} else if (ret == -1) {	/* Error detected when parsing the SM */
-		goto report_error;
-	} else if (file_size > FLASH_BANK_SIZE) {
-		SYS_LOG_ERR("Artifact file size too big (%d)", file_size);
-		ret = -EFBIG;
 		goto report_error;
 	}
 
