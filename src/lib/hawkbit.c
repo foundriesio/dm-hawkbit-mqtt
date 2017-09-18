@@ -870,6 +870,12 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 		}
 	}
 
+	if (json_acid < 0) {
+		SYS_LOG_ERR("Invalid (negative) action ID %d", json_acid);
+		ret = -EINVAL;
+		goto report_error;
+	}
+
 	hawkbit_device_acid_read(&device_acid);
 
 	if (device_acid.current == json_acid) {
@@ -878,32 +884,31 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 					     HAWKBIT_RESULT_SUCCESS,
 					     HAWKBIT_EXEC_CLOSED);
 		return 0;
-	} else if (device_acid.update == json_acid) {
-		/* There was already an atempt, so announce a failure */
-		hawkbit_report_update_status(hb_ctx, json_acid,
-					     HAWKBIT_RESULT_FAILURE,
-					     HAWKBIT_EXEC_CLOSED);
-		return 0;
 	}
 
-	/* Perform the action */
-	if (strlen(download_http) == 0) {
-		SYS_LOG_DBG("No download http address found, no action");
-		return 0;
-	}
-	/* Error detected when parsing the SM */
-	if (ret == -1) {
-		hawkbit_report_update_status(hb_ctx, json_acid,
-					     HAWKBIT_RESULT_FAILURE,
-					     HAWKBIT_EXEC_CLOSED);
-		return -1;
-	}
-	if (file_size > FLASH_BANK_SIZE) {
+	/*
+	 * Check for errors.
+	 */
+	if (device_acid.update == (u32_t)json_acid) {
+		SYS_LOG_ERR("Preventing repeated attempt to install %d",
+			    json_acid);
+		ret = -EALREADY;
+		goto report_error;
+	} else if (strlen(download_http) == 0) {
+		/*
+		 * This usually happens when the artifact upload to
+		 * the hawkBit server failed, e.g. due to passing a
+		 * script an invalid filename. Handle it as an error.
+		 */
+		SYS_LOG_ERR("No download http address found, no action");
+		ret = -ENOENT;
+		goto report_error;
+	} else if (ret == -1) {	/* Error detected when parsing the SM */
+		goto report_error;
+	} else if (file_size > FLASH_BANK_SIZE) {
 		SYS_LOG_ERR("Artifact file size too big (%d)", file_size);
-		hawkbit_report_update_status(hb_ctx, json_acid,
-					     HAWKBIT_RESULT_FAILURE,
-					     HAWKBIT_EXEC_CLOSED);
-		return -1;
+		ret = -EFBIG;
+		goto report_error;
 	}
 
 	/* Here we should have everything we need to apply the action */
@@ -916,7 +921,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	if (ret != 0) {
 		SYS_LOG_ERR("Failed to install the update for action ID %d",
 			    json_acid);
-		return -1;
+		goto report_error;
 	}
 
 	SYS_LOG_INF("Triggering OTA update.");
@@ -924,7 +929,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	ret = hawkbit_device_acid_update(HAWKBIT_ACID_UPDATE, json_acid);
 	if (ret != 0) {
 		SYS_LOG_ERR("Failed to update ACID: %d", ret);
-		return -1;
+		goto report_error;
 	}
 	SYS_LOG_INF("Image id %d flashed successfuly, rebooting now",
 					json_acid);
@@ -933,6 +938,12 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	sys_reboot(0);
 
 	return 0;
+
+ report_error:
+	hawkbit_report_update_status(hb_ctx, json_acid,
+				     HAWKBIT_RESULT_FAILURE,
+				     HAWKBIT_EXEC_CLOSED);
+	return ret;
 }
 
 /* Firmware OTA thread (Hawkbit) */
