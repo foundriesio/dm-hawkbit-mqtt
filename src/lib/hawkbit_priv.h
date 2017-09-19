@@ -10,8 +10,8 @@
 #include <zephyr/types.h>
 
 /*
- * This file contains contains structures representing JSON results
- * received from a hawkBit server.
+ * This file contains contains structures representing JSON messages
+ * exchanged with a hawkBit server.
  *
  * For full details, see:
  *
@@ -22,11 +22,47 @@
  */
 
 /*
- * Common object representing an object containing a link in its
- * "href" field.
+ * Common objects.
  */
+
 struct hawkbit_href {
 	const char *href;
+};
+
+enum hawkbit_status_fini {
+	HAWKBIT_STATUS_FINISHED_SUCCESS = 0,
+	HAWKBIT_STATUS_FINISHED_FAILURE,
+	HAWKBIT_STATUS_FINISHED_NONE,
+};
+
+struct hawkbit_status_result {
+	/*
+	 * hawkbit_status_finished() converts from enum hawkbit_status_fini.
+	 */
+	const char			*finished;
+	/*
+	 * The "progress" field is unsupported. Its purpose is not
+	 * clear in the documentation, and the "of" and "cnt" fields
+	 * it contains seem to be unused in the result handling code.
+	 */
+};
+
+enum hawkbit_status_exec {
+	HAWKBIT_STATUS_EXEC_CLOSED = 0,
+	HAWKBIT_STATUS_EXEC_PROCEEDING,
+	HAWKBIT_STATUS_EXEC_CANCELED,
+	HAWKBIT_STATUS_EXEC_SCHEDULED,
+	HAWKBIT_STATUS_EXEC_REJECTED,
+	HAWKBIT_STATUS_EXEC_RESUMED,
+};
+
+struct hawkbit_status {
+	/*
+	 * hawkbit_status_execution() converts from enum hawkbit_status_exec.
+	 */
+	const char			*execution;
+	struct hawkbit_status_result	 result;
+	/* The "details" field is currently unsupported. */
 };
 
 /*
@@ -95,6 +131,9 @@ struct hawkbit_ctl_res {
 /*
  * struct hawkbit_dep_res represents results from the deployment
  * operations resource.
+ *
+ * struct hawkbit_dep_fbk represents a response sent to its feedback
+ * channel.
  */
 
 /* Maximum number of chunks we support */
@@ -139,6 +178,12 @@ struct hawkbit_dep_res_deploy {
 struct hawkbit_dep_res {
 	const char			*id;
 	struct hawkbit_dep_res_deploy	 deployment;
+};
+
+struct hawkbit_dep_fbk {
+	const char		*id;
+	/* The "time" field is currently unsupported. */
+	struct hawkbit_status	 status;
 };
 
 #endif /* __HAWKBIT_PRIV_H__ */

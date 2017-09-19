@@ -103,21 +103,6 @@ struct json_data_t {
 };
 
 typedef enum {
-	HAWKBIT_RESULT_SUCCESS = 0,
-	HAWKBIT_RESULT_FAILURE,
-	HAWKBIT_RESULT_NONE,
-} hawkbit_result_status_t;
-
-typedef enum {
-	HAWKBIT_EXEC_CLOSED = 0,
-	HAWKBIT_EXEC_PROCEEDING,
-	HAWKBIT_EXEC_CANCELED,
-	HAWKBIT_EXEC_SCHEDULED,
-	HAWKBIT_EXEC_REJECTED,
-	HAWKBIT_EXEC_RESUMED,
-} hawkbit_exec_status_t;
-
-typedef enum {
 	HAWKBIT_ACID_CURRENT = 0,
 	HAWKBIT_ACID_UPDATE,
 } hawkbit_dev_acid_t;
@@ -171,6 +156,17 @@ static struct net_buf_pool *data_pool(void)
 
 static const struct json_obj_descr json_href_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct hawkbit_href, href, JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr json_status_result_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_status_result, finished,
+			    JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr json_status_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_status, execution, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_status, result,
+			      json_status_result_descr),
 };
 
 static const struct json_obj_descr json_ctl_res_sleep_descr[] = {
@@ -258,6 +254,12 @@ static const struct json_obj_descr json_dep_res_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct hawkbit_dep_res, id, JSON_TOK_STRING),
 	JSON_OBJ_DESCR_OBJECT(struct hawkbit_dep_res, deployment,
 			      json_dep_res_deploy_descr),
+};
+
+static const struct json_obj_descr json_dep_fbk_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_dep_fbk, id, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_dep_fbk, status,
+			      json_status_descr),
 };
 
 /*
@@ -358,6 +360,42 @@ static int hawkbit_time2sec(const char *s)
 		return -1;
 	} else {
 		return sec;
+	}
+}
+
+static const char *hawkbit_status_finished(enum hawkbit_status_fini f)
+{
+	switch (f) {
+	case HAWKBIT_STATUS_FINISHED_SUCCESS:
+		return "success";
+	case HAWKBIT_STATUS_FINISHED_FAILURE:
+		return "failure";
+	case HAWKBIT_STATUS_FINISHED_NONE:
+		return "none";
+	default:
+		SYS_LOG_ERR("%d is invalid", (int)f);
+		return NULL;
+	}
+}
+
+static const char *hawkbit_status_execution(enum hawkbit_status_exec e)
+{
+	switch (e) {
+	case HAWKBIT_STATUS_EXEC_CLOSED:
+		return "closed";
+	case HAWKBIT_STATUS_EXEC_PROCEEDING:
+		return "proceeding";
+	case HAWKBIT_STATUS_EXEC_CANCELED:
+		return "canceled";
+	case HAWKBIT_STATUS_EXEC_SCHEDULED:
+		return "scheduled";
+	case HAWKBIT_STATUS_EXEC_REJECTED:
+		return "rejected";
+	case HAWKBIT_STATUS_EXEC_RESUMED:
+		return "resumed";
+	default:
+		SYS_LOG_ERR("%d is invalid", (int)e);
+		return NULL;
 	}
 }
 
@@ -833,65 +871,46 @@ static int hawkbit_parse_deployment(struct hawkbit_dep_res *res,
 	return 0;
 }
 
-static int hawkbit_report_update_status(struct hawkbit_context *hb_ctx,
-					int acid,
-					hawkbit_result_status_t status,
-					hawkbit_exec_status_t exec)
+static int hawkbit_report_dep_fbk(struct hawkbit_context *hb_ctx,
+				  s32_t action_id,
+				  enum hawkbit_status_fini finished,
+				  enum hawkbit_status_exec execution)
 {
 	const struct product_id_t *product_id = product_id_get();
-	char finished[8];	/* 'success', 'failure', 'none' */
-	char execution[11];
+	struct hawkbit_dep_fbk feedback;
+	char acid[11]; /* This is large enough for a 32 bit integer. */
+	const char *fini = hawkbit_status_finished(finished);
+	const char *exec = hawkbit_status_execution(execution);
+	int ret;
 
-	switch (status) {
-	case HAWKBIT_RESULT_SUCCESS:
-		snprintf(finished, sizeof(finished), "success");
-		break;
-	case HAWKBIT_RESULT_FAILURE:
-		snprintf(finished, sizeof(finished), "failure");
-		break;
-	case HAWKBIT_RESULT_NONE:
-		snprintf(finished, sizeof(finished), "none");
-		break;
+	if (!fini || !exec) {
+		return -EINVAL;
 	}
 
-	/* 'closed', 'proceeding', 'canceled', 'scheduled',
-	 * 'rejected', 'resumed'
-	 */
-	switch (exec) {
-	case HAWKBIT_EXEC_CLOSED:
-		snprintf(execution, sizeof(execution), "closed");
-		break;
-	case HAWKBIT_EXEC_PROCEEDING:
-		snprintf(execution, sizeof(execution), "proceeding");
-		break;
-	case HAWKBIT_EXEC_CANCELED:
-		snprintf(execution, sizeof(execution), "canceled");
-		break;
-	case HAWKBIT_EXEC_SCHEDULED:
-		snprintf(execution, sizeof(execution), "scheduled");
-		break;
-	case HAWKBIT_EXEC_REJECTED:
-		snprintf(execution, sizeof(execution), "rejected");
-		break;
-	case HAWKBIT_EXEC_RESUMED:
-		snprintf(execution, sizeof(execution), "resumed");
-		break;
-	}
-
-	SYS_LOG_INF("Reporting action ID feedback: %s", finished);
+	SYS_LOG_INF("Reporting deployment feedback %s (%s) for action %d",
+		    fini, exec, action_id);
 
 	/* Build URL */
 	snprintf(hb_ctx->url_buffer, hb_ctx->url_buffer_size,
 		 "%s/%s-%x/deploymentBase/%d/feedback",
-		 HAWKBIT_JSON_URL, product_id->name, product_id->number, acid);
+		 HAWKBIT_JSON_URL, product_id->name, product_id->number,
+		 action_id);
 
 	/* Build JSON */
-	snprintf(hb_ctx->status_buffer, hb_ctx->status_buffer_size, "{"
-			"\"id\":\"%d\","
-			"\"status\":{"
-				"\"result\":{\"finished\":\"%s\"},"
-				"\"execution\":\"%s\"}"
-			"}", acid, finished, execution);
+	memset(&feedback, 0, sizeof(feedback));
+	snprintf(acid, sizeof(acid), "%d", action_id);
+	feedback.id = acid;
+	feedback.status.result.finished = fini;
+	feedback.status.execution = exec;
+	ret = json_obj_encode_buf(json_dep_fbk_descr,
+				  ARRAY_SIZE(json_dep_fbk_descr),
+				  &feedback, hb_ctx->status_buffer,
+				  hb_ctx->status_buffer_size - 1);
+	if (ret) {
+		SYS_LOG_ERR("Can't encode response: %d", ret);
+		return ret;
+	}
+	SYS_LOG_DBG("JSON response: %s", hb_ctx->status_buffer);
 
 	memset(&hb_ctx->http_req, 0, sizeof(hb_ctx->http_req));
 	hb_ctx->http_req.method = HTTP_POST;
@@ -903,12 +922,12 @@ static int hawkbit_report_update_status(struct hawkbit_context *hb_ctx,
 	hb_ctx->http_req.payload = hb_ctx->status_buffer;
 	hb_ctx->http_req.payload_size = strlen(hb_ctx->status_buffer);
 
-	if (hawkbit_query(hb_ctx, NULL) < 0) {
-		SYS_LOG_ERR("Error when reporting acId feedback to Hawkbit");
-		return -1;
+	ret = hawkbit_query(hb_ctx, NULL);
+	if (ret) {
+		SYS_LOG_ERR("Failed to report deployment feedback");
 	}
 
-	return 0;
+	return ret;
 }
 
 static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
@@ -925,7 +944,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	 */
 	char deployment_base[40];	/* TODO: Find a better value */
 	char download_http[200];	/* TODO: Find a better value */
-	static int json_acid;
+	static s32_t json_acid;
 	s32_t file_size = 0;
 	/*
 	 * Etc.
@@ -1065,10 +1084,10 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	hawkbit_device_acid_read(&device_acid);
 	if (device_acid.current == json_acid) {
 		/* We are coming from a successful flash, update the server */
-		hawkbit_report_update_status(hb_ctx, json_acid,
-					     HAWKBIT_RESULT_SUCCESS,
-					     HAWKBIT_EXEC_CLOSED);
-		return 0;
+		ret = hawkbit_report_dep_fbk(hb_ctx, json_acid,
+					     HAWKBIT_STATUS_FINISHED_SUCCESS,
+					     HAWKBIT_STATUS_EXEC_CLOSED);
+		return ret;
 	}
 
 	/*
@@ -1084,9 +1103,12 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	/* Here we should have everything we need to apply the action */
 	SYS_LOG_INF("Valid action ID %d found, proceeding with the update",
 					json_acid);
-	hawkbit_report_update_status(hb_ctx, json_acid,
-				     HAWKBIT_RESULT_SUCCESS,
-				     HAWKBIT_EXEC_PROCEEDING);
+	ret = hawkbit_report_dep_fbk(hb_ctx, json_acid,
+				     HAWKBIT_STATUS_FINISHED_SUCCESS,
+				     HAWKBIT_STATUS_EXEC_PROCEEDING);
+	if (ret) {
+		return ret;
+	}
 	ret = hawkbit_install_update(hb_ctx, download_http, file_size);
 	if (ret != 0) {
 		SYS_LOG_ERR("Failed to install the update for action ID %d",
@@ -1110,9 +1132,9 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	return 0;
 
  report_error:
-	hawkbit_report_update_status(hb_ctx, json_acid,
-				     HAWKBIT_RESULT_FAILURE,
-				     HAWKBIT_EXEC_CLOSED);
+	hawkbit_report_dep_fbk(hb_ctx, json_acid,
+			       HAWKBIT_STATUS_FINISHED_FAILURE,
+			       HAWKBIT_STATUS_EXEC_CLOSED);
 	return ret;
 }
 
