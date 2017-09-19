@@ -34,6 +34,13 @@
 #include "product_id.h"
 #include "tcp.h"
 
+/*
+ * Uncomment for extra debug printing.
+ *
+ * Currently, this dumps JSON responses received from the server.
+ */
+/* #define HAWKBIT_EXTRA_DEBUG */
+
 #define HAWKBIT_MAX_SERVER_FAIL	5
 
 /* Network configuration checks */
@@ -252,6 +259,76 @@ static const struct json_obj_descr json_dep_res_descr[] = {
 	JSON_OBJ_DESCR_OBJECT(struct hawkbit_dep_res, deployment,
 			      json_dep_res_deploy_descr),
 };
+
+/*
+ * JSON debug helpers; these may be unused.
+ */
+
+__unused
+static const char *str_or_null(const char *str)
+{
+	if (str) {
+		return str;
+	} else {
+		return "NULL";
+	}
+}
+
+__unused
+static void hawkbit_dump_base(struct hawkbit_ctl_res *r, const char *comment)
+{
+	SYS_LOG_DBG("Base polling resource results %s:\n\t"
+		    "config.polling.sleep=%s\n\t"
+		    "_links.deploymentBase.href=%s\n\t"
+		    "_links.configData.href=%s\n\t"
+		    "_links.cancelAction.href=%s\n\t",
+		    comment,
+		    str_or_null(r->config.polling.sleep),
+		    str_or_null(r->_links.deploymentBase.href),
+		    str_or_null(r->_links.configData.href),
+		    str_or_null(r->_links.cancelAction.href));
+}
+
+__unused
+static void hawkbit_dump_deployment(struct hawkbit_dep_res *d,
+				    const char *comment)
+{
+	struct hawkbit_dep_res_chunk *c = &d->deployment.chunks[0];
+	struct hawkbit_dep_res_arts *a = &c->artifacts[0];
+	struct hawkbit_dep_res_links *l = &a->_links;
+
+	SYS_LOG_DBG("Deployment base results %s:\n\t"
+		    "id=%s\n\t"
+		    "deployment =\n\t\t"
+		    "download=%s\n\t\t"
+		    "update=%s\n\t\t"
+		    "chunks[0].part=%s\n\t\t"
+		    "         .name=%s\n\t\t"
+		    "         .version=%s\n\t\t"
+		    "         .artifacts[0].filename=%s\n\t\t"
+		    "                      .size=%d\n\t\t"
+		    "                      .hashes = sha1=%s,md5=%s\n\t\t"
+		    "                      ._links =\n\t\t\t"
+		    "                                 download=%s\n\t\t\t"
+		    "                                 md5sum=%s\n\t\t\t"
+		    "                                 download_http=%s\n\t\t\t"
+		    "                                 md5sum_http=%s\n\t\t\t",
+		    comment,
+		    str_or_null(d->id),
+		    str_or_null(d->deployment.download),
+		    str_or_null(d->deployment.update),
+		    str_or_null(c->part),
+		    str_or_null(c->name),
+		    str_or_null(c->version),
+		    str_or_null(a->filename),
+		    a->size,
+		    str_or_null(a->hashes.sha1),
+		    str_or_null(a->hashes.md5),
+		    str_or_null(l->download.href),
+		    str_or_null(l->md5sum.href),
+		    str_or_null(l->download_http.href),
+		    str_or_null(l->md5sum_http.href));
+}
 
 /* Utils */
 static int atoi_n(const char *s, int len)
@@ -892,6 +969,11 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 		SYS_LOG_ERR("JSON parse error %d polling base resource", ret);
 		return ret;
 	}
+
+#ifdef HAWKBIT_EXTRA_DEBUG
+	hawkbit_dump_base(&hawkbit_results.base, "");
+#endif
+
 	if (hawkbit_results.base.config.polling.sleep) {
 		/* Update the sleep time. */
 		hawkbit_update_sleep(&hawkbit_results.base);
@@ -960,6 +1042,10 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 		ret = -EINVAL;
 		goto report_error;
 	}
+
+#ifdef HAWKBIT_EXTRA_DEBUG
+	hawkbit_dump_deployment(&hawkbit_results.dep, "");
+#endif
 
 	ret = hawkbit_parse_deployment(&hawkbit_results.dep, &json_acid,
 				       download_http, sizeof(download_http),
