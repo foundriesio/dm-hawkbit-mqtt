@@ -129,6 +129,26 @@ struct hawkbit_ctl_res {
 };
 
 /*
+ * struct hawkbit_cfg represents metadata sent to a target's
+ * configData resource.
+ */
+
+/*
+ * FIXME: "data" is actually a generic key/value list; support this.
+ */
+struct hawkbit_cfg_data {
+	const char *board;
+	const char *serial;
+};
+
+struct hawkbit_cfg {
+	const char		*id;
+	/* The "time" field is currently unsupported. */
+	struct hawkbit_status	 status;
+	struct hawkbit_cfg_data  data;
+};
+
+/*
  * struct hawkbit_dep_res represents results from the deployment
  * operations resource.
  *

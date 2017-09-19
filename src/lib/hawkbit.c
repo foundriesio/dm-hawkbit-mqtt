@@ -195,6 +195,17 @@ static const struct json_obj_descr json_ctl_res_descr[] = {
 			      json_ctl_res_links_descr),
 };
 
+static const struct json_obj_descr json_cfg_data_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_cfg_data, board, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_cfg_data, serial, JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr json_cfg_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct hawkbit_cfg, id, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_cfg, status, json_status_descr),
+	JSON_OBJ_DESCR_OBJECT(struct hawkbit_cfg, data, json_cfg_data_descr),
+};
+
 static const struct json_obj_descr json_dep_res_hashes_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct hawkbit_dep_res_hashes, sha1,
 			    JSON_TOK_STRING),
@@ -726,6 +737,9 @@ static void hawkbit_update_sleep(struct hawkbit_ctl_res *hawkbit_res)
 static int hawkbit_report_config_data(struct hawkbit_context *hb_ctx)
 {
 	const struct product_id_t *product_id = product_id_get();
+	char product_id_number[11]; /* This is large enough for a u32_t. */
+	struct hawkbit_cfg cfg;
+	int ret;
 
 	SYS_LOG_INF("Reporting target config data to Hawkbit");
 
@@ -735,14 +749,24 @@ static int hawkbit_report_config_data(struct hawkbit_context *hb_ctx)
 		 product_id->name, product_id->number);
 
 	/* Build JSON */
-	snprintf(hb_ctx->status_buffer, hb_ctx->status_buffer_size, "{"
-			"\"data\":{"
-				"\"board\":\"%s\","
-				"\"serial\":\"%x\"},"
-			"\"status\":{"
-				"\"result\":{\"finished\":\"success\"},"
-				"\"execution\":\"closed\"}"
-			"}", product_id->name, product_id->number);
+	memset(&cfg, 0, sizeof(cfg));
+	snprintf(product_id_number, sizeof(product_id_number), "%u",
+		 product_id->number);
+	cfg.id = "";
+	cfg.status.execution =
+		hawkbit_status_execution(HAWKBIT_STATUS_EXEC_CLOSED);
+	cfg.status.result.finished =
+		hawkbit_status_finished(HAWKBIT_STATUS_FINISHED_SUCCESS);
+	cfg.data.board = product_id->name;
+	cfg.data.serial = product_id_number;
+	ret = json_obj_encode_buf(json_cfg_descr, ARRAY_SIZE(json_cfg_descr),
+				  &cfg, hb_ctx->status_buffer,
+				  hb_ctx->status_buffer_size - 1);
+	if (ret) {
+		SYS_LOG_ERR("can't encode response: %d", ret);
+		return ret;
+	}
+	SYS_LOG_DBG("JSON response: %s", hb_ctx->status_buffer);
 
 	memset(&hb_ctx->http_req, 0, sizeof(hb_ctx->http_req));
 	hb_ctx->http_req.method = HTTP_PUT;
