@@ -109,7 +109,7 @@ typedef enum {
 
 #define HAWKBIT_RX_TIMEOUT	K_SECONDS(10)
 
-#define HAWKBIT_STACK_SIZE 3840
+#define HAWKBIT_STACK_SIZE 2300
 static K_THREAD_STACK_DEFINE(hawkbit_thread_stack, HAWKBIT_STACK_SIZE);
 static struct k_thread hawkbit_thread_data;
 
