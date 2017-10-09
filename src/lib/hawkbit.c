@@ -1149,6 +1149,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	}
 	SYS_LOG_INF("Image id %d flashed successfuly, rebooting now",
 					json_acid);
+	STACK_ANALYZE("Hawkbit Thread", hawkbit_thread_stack);
 
 	/* Reboot and let the bootloader take care of the swap process */
 	sys_reboot(0);
