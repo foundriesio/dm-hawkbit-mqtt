@@ -843,6 +843,7 @@ static int hawkbit_parse_deployment(struct hawkbit_dep_res *res,
 		SYS_LOG_ERR("negative action ID %d", acid);
 		return -EINVAL;
 	}
+	*json_acid = acid;
 	num_chunks = res->deployment.num_chunks;
 	if (num_chunks != 1) {
 		SYS_LOG_ERR("expecting one chunk (got %d)", num_chunks);
@@ -889,7 +890,6 @@ static int hawkbit_parse_deployment(struct hawkbit_dep_res *res,
 		return -ENOMEM;
 	}
 	/* Success. */
-	*json_acid = acid;
 	strncpy(download_http, helper, download_http_size);
 	*file_size = size;
 	return 0;
