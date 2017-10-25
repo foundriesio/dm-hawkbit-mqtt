@@ -744,13 +744,13 @@ static int hawkbit_report_config_data(struct hawkbit_context *hb_ctx)
 	SYS_LOG_INF("Reporting target config data to Hawkbit");
 
 	/* Build URL */
-	snprintf(hb_ctx->url_buffer, hb_ctx->url_buffer_size,
+	snprintk(hb_ctx->url_buffer, hb_ctx->url_buffer_size,
 		 "%s/%s-%x/configData", HAWKBIT_JSON_URL,
 		 product_id->name, product_id->number);
 
 	/* Build JSON */
 	memset(&cfg, 0, sizeof(cfg));
-	snprintf(product_id_number, sizeof(product_id_number), "%u",
+	snprintk(product_id_number, sizeof(product_id_number), "%u",
 		 product_id->number);
 	cfg.id = "";
 	cfg.status.execution =
@@ -915,14 +915,14 @@ static int hawkbit_report_dep_fbk(struct hawkbit_context *hb_ctx,
 		    fini, exec, action_id);
 
 	/* Build URL */
-	snprintf(hb_ctx->url_buffer, hb_ctx->url_buffer_size,
+	snprintk(hb_ctx->url_buffer, hb_ctx->url_buffer_size,
 		 "%s/%s-%x/deploymentBase/%d/feedback",
 		 HAWKBIT_JSON_URL, product_id->name, product_id->number,
 		 action_id);
 
 	/* Build JSON */
 	memset(&feedback, 0, sizeof(feedback));
-	snprintf(acid, sizeof(acid), "%d", action_id);
+	snprintk(acid, sizeof(acid), "%d", action_id);
 	feedback.id = acid;
 	feedback.status.result.finished = fini;
 	feedback.status.execution = exec;
@@ -984,7 +984,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	SYS_LOG_DBG("Polling target data from Hawkbit");
 
 	/* Build URL */
-	snprintf(hb_ctx->url_buffer, hb_ctx->url_buffer_size, "%s/%s-%x",
+	snprintk(hb_ctx->url_buffer, hb_ctx->url_buffer_size, "%s/%s-%x",
 		 HAWKBIT_JSON_URL, product_id->name, product_id->number);
 
 	memset(&hb_ctx->http_req, 0, sizeof(hb_ctx->http_req));
@@ -1051,7 +1051,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	memset(&json, 0, sizeof(struct json_data_t));
 
 	/* Build URL: Hawkbit DDI v1 deploymentBase */
-	snprintf(hb_ctx->url_buffer, hb_ctx->url_buffer_size, "%s/%s-%x/%s",
+	snprintk(hb_ctx->url_buffer, hb_ctx->url_buffer_size, "%s/%s-%x/%s",
 		 HAWKBIT_JSON_URL, product_id->name, product_id->number,
 		 deployment_base);
 

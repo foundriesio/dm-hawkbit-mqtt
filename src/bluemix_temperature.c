@@ -82,7 +82,7 @@ static void bluemix_publish_result(struct k_work *work)
 	TC_START("Publish temperature to Bluemix");
 	for (i = 0; i < data->tc_count; i++) {
 		result = data->tc_results[i];
-		snprintf(result_name, sizeof(result_name), "%s_%zu",
+		snprintk(result_name, sizeof(result_name), "%s_%zu",
 			 __func__, i);
 		if (result == TC_FAIL) {
 			final_result = TC_FAIL;

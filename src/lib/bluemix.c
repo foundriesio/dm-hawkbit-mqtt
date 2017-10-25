@@ -146,13 +146,13 @@ static int bluemix_start(struct bluemix_ctx *ctx)
 	/*
 	 * Initialize the IDs etc. before doing anything else.
 	 */
-	snprintf(ctx->bm_id, sizeof(ctx->bm_id), "%s-%08x",
+	snprintk(ctx->bm_id, sizeof(ctx->bm_id), "%s-%08x",
 		 CONFIG_FOTA_BLUEMIX_DEVICE_TYPE, product_id_get()->number);
-	snprintf(ctx->client_id, sizeof(ctx->client_id),
+	snprintk(ctx->client_id, sizeof(ctx->client_id),
 		"d:%s:%s:%s", CONFIG_FOTA_BLUEMIX_ORG,
 		CONFIG_FOTA_BLUEMIX_DEVICE_TYPE,
 		ctx->bm_id);
-	snprintf(ctx->bm_auth_token, sizeof(ctx->bm_auth_token),
+	snprintk(ctx->bm_auth_token, sizeof(ctx->bm_auth_token),
 		 "%08x", product_id_get()->number);
 
 	k_sem_init(&ctx->wait_sem, 0, 1);
@@ -234,18 +234,18 @@ int bluemix_pub_status_json(struct bluemix_ctx *ctx,
 	va_list vargs;
 	int ret;
 
-	snprintf(ctx->bm_topic, sizeof(ctx->bm_topic),
+	snprintk(ctx->bm_topic, sizeof(ctx->bm_topic),
 		 "iot-2/type/%s/id/%s/evt/status/fmt/json",
 		 CONFIG_FOTA_BLUEMIX_DEVICE_TYPE, ctx->bm_id);
 
 	/* Fill in the initial '{"d":'. */
-	ret = snprintf(ctx->bm_message, sizeof(ctx->bm_message), "{\"d\":");
+	ret = snprintk(ctx->bm_message, sizeof(ctx->bm_message), "{\"d\":");
 	if (ret == sizeof(ctx->bm_message) - 1) {
 		return -ENOMEM;
 	}
 	/* Add the user data. */
 	va_start(vargs, fmt);
-	ret += vsnprintf(ctx->bm_message + ret, sizeof(ctx->bm_message) - ret,
+	ret += vsnprintk(ctx->bm_message + ret, sizeof(ctx->bm_message) - ret,
 			 fmt, vargs);
 	va_end(vargs);
 	if (ret > sizeof(ctx->bm_message) - 2) {
@@ -253,7 +253,7 @@ int bluemix_pub_status_json(struct bluemix_ctx *ctx,
 		return -ENOMEM;
 	}
 	/* Append the closing brace. */
-	snprintf(ctx->bm_message + ret, sizeof(ctx->bm_message) - ret, "}");
+	snprintk(ctx->bm_message + ret, sizeof(ctx->bm_message) - ret, "}");
 
 	/* Fill out the MQTT publication, and ship it.
 	 *
