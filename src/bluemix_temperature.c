@@ -216,7 +216,7 @@ static int temp_bm_cb(struct bluemix_ctx *ctx, int event, void *data)
 	case BLUEMIX_EVT_POLL:
 		return temp_bm_poll(ctx, data);
 	default:
-		SYS_LOG_ERR("unexpected callback event %d");
+		SYS_LOG_ERR("unexpected callback event %d", event);
 		return BLUEMIX_CB_HALT;
 	}
 }
