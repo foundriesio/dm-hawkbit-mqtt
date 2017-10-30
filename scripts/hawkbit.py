@@ -1,8 +1,10 @@
 from __future__ import print_function
 
 import argparse
+import pprint
 import requests
 import json
+import sys
 
 __version__ = 1.0
 
@@ -25,9 +27,22 @@ def publish(provider, name, type, version, description, artifact,
           'version': version}
     response = requests.post(sm_url, data=json.dumps([sm]),
                              auth=(user, password), headers=headers)
+
     if response.status_code != 500:
-        print(json.loads(response.content))
-        for item in json.loads(response.content):
+        response = json.loads(response.content)
+
+        print('Got response from server when posting software module:')
+        pprint.pprint(response)
+        artifacts_url = None
+        self_url = None
+        type_url = None
+        metadata_url = None
+
+        if 'errorCode' in response:
+            print('An error occurred; stopping.', file=sys.stderr)
+            return
+
+        for item in response:
             if 'id' in item:
                 id = item['id']
             if '_links' in item:
@@ -39,11 +54,11 @@ def publish(provider, name, type, version, description, artifact,
                     type_url = item['_links']['type']['href']
                 if 'metadata' in item['_links']:
                     metadata_url = item['_links']['metadata']['href']
-        print(artifacts_url)
-        print(self_url)
-        print(type_url)
-        print(metadata_url)
-        print(id)
+
+        if None in (artifacts_url, self_url, type_url, metadata_url):
+            print("Couldn't parse response", file=sys.stderr)
+            return
+
     # Upload Artifact
     headers = {'Accept': 'application/json'}
     artifacts = {'file': open(artifact, 'rb')}
