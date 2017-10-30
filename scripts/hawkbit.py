@@ -8,8 +8,8 @@ __version__ = 1.0
 
 user = 'admin'
 password = 'admin'
-DS_URL_DEFAULT = 'http://hawkbit:8080/rest/v1/distributionsets'
-SM_URL_DEFAULT = 'http://hawkbit:8080/rest/v1/softwaremodules'
+DS_URL_DEFAULT = 'http://localhost:8080/rest/v1/distributionsets'
+SM_URL_DEFAULT = 'http://localhost:8080/rest/v1/softwaremodules'
 
 
 def publish(provider, name, type, version, description, artifact,
