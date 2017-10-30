@@ -81,7 +81,8 @@ def publish(provider, name, type, version, description, artifact,
         response = requests.post(ds_url, data=json.dumps([ds]),
                                  auth=(user, password), headers=headers)
         if response.status_code != 500:
-            print(response.content)
+            print('Got response from server when posting artifacts:')
+            pprint.pprint(json.loads(response.content))
 
 
 def main():
