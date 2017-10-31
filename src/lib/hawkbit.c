@@ -75,7 +75,7 @@ BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_PEER_IPV4_ADDR) > 1,
 /* TODO: optimize these values */
 #define TCP_RECV_BUFFER_SIZE	2048
 #define URL_BUFFER_SIZE		128
-#define STATUS_BUFFER_SIZE	128
+#define STATUS_BUFFER_SIZE	200
 #define HTTP_HEADER_BUFFER_SIZE	512
 
 struct hawkbit_context {
