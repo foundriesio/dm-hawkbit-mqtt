@@ -7,7 +7,7 @@
 #ifndef __FOTA_HAWKBIT_H__
 #define __FOTA_HAWKBIT_H__
 
-#define HAWKBIT_HOST	"gitci.com:8080"
+#define HAWKBIT_HOST	"mgmt.foundries.io:8080"
 #define HAWKBIT_PORT	8080
 #define HAWKBIT_JSON_URL "/DEFAULT/controller/v1"
 
