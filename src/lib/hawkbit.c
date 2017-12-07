@@ -79,8 +79,8 @@ BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_PEER_IPV4_ADDR) > 1,
 #define HTTP_HEADER_BUFFER_SIZE	512
 
 struct hawkbit_context {
-	struct http_client_ctx http_ctx;
-	struct http_client_request http_req;
+	struct http_ctx http_ctx;
+	struct http_request http_req;
 	u8_t tcp_buffer[TCP_RECV_BUFFER_SIZE];
 	size_t tcp_buffer_size;
 	u8_t url_buffer[URL_BUFFER_SIZE];
@@ -492,7 +492,7 @@ static int hawkbit_start(void)
 }
 
 /* http_client doesn't callback until the HTTP body has started */
-static void install_update_cb(struct http_client_ctx *ctx,
+static void install_update_cb(struct http_ctx *ctx,
 			      u8_t *data, size_t data_size,
 			      size_t data_len,
 			      enum http_final_call final_data,
@@ -504,26 +504,27 @@ static void install_update_cb(struct http_client_ctx *ctx,
 	size_t body_len = 0;
 
 	/* HTTP error */
-	if (ctx->parser.status_code != 200) {
-		SYS_LOG_ERR("HTTP error: %d!", ctx->parser.status_code);
+	if (ctx->http.parser.status_code != 200) {
+		SYS_LOG_ERR("HTTP error: %d!", ctx->http.parser.status_code);
 		goto error;
 	}
 
 	/* header hasn't been read yet */
 	if (hbd->http_content_size == 0) {
-		if (ctx->rsp.body_found == 0) {
+		if (ctx->http.rsp.body_found == 0) {
 			SYS_LOG_ERR("Callback called w/o HTTP header found!");
 			goto error;
 		}
 
-		body_data = ctx->rsp.body_start;
+		body_data = ctx->http.rsp.body_start;
 		body_len = data_len;
-		body_len -= (ctx->rsp.body_start - ctx->rsp.response_buf);
-		hbd->http_content_size = ctx->rsp.content_length;
+		body_len -= (ctx->http.rsp.body_start -
+			     ctx->http.rsp.response_buf);
+		hbd->http_content_size = ctx->http.rsp.content_length;
 	}
 
 	if (body_data == NULL) {
-		body_data = ctx->rsp.response_buf;
+		body_data = ctx->http.rsp.response_buf;
 		body_len = data_len;
 	}
 
@@ -589,14 +590,15 @@ static int hawkbit_install_update(struct hawkbit_context *hb_ctx,
 	k_sem_init(hbd.download_waitp, 0, 1);
 
 	ret = http_client_init(&hbc.http_ctx,
-			       HAWKBIT_SERVER_ADDR, HAWKBIT_PORT);
+			       HAWKBIT_SERVER_ADDR, HAWKBIT_PORT,
+			       NULL, HAWKBIT_RX_TIMEOUT);
 	if (ret < 0) {
 		SYS_LOG_ERR("Failed to init http ctx, err %d", ret);
 		return ret;
 	}
 
 #if defined(CONFIG_NET_CONTEXT_NET_PKT_POOL)
-	http_client_set_net_pkt_pool(&hbc.http_ctx, tx_slab, data_pool);
+	net_app_set_net_pkt_pool(&hbc.http_ctx.app_ctx, tx_slab, data_pool);
 #endif
 
 	ret = http_client_send_get_req(&hb_ctx->http_ctx, download_http,
@@ -622,8 +624,8 @@ static int hawkbit_install_update(struct hawkbit_context *hb_ctx,
 		}
 	}
 
-	/* clean up TCP context */
-	http_client_release(&hb_ctx->http_ctx);
+	/* clean up context */
+	http_release(&hb_ctx->http_ctx);
 
 	if (hbd.download_status < 0) {
 		SYS_LOG_ERR("Unable to finish the download process %d",
@@ -661,14 +663,15 @@ static int hawkbit_query(struct hawkbit_context *hb_ctx,
 	memset(hb_ctx->tcp_buffer, 0, hb_ctx->tcp_buffer_size);
 
 	ret = http_client_init(&hbc.http_ctx,
-			       HAWKBIT_SERVER_ADDR, HAWKBIT_PORT);
+			       HAWKBIT_SERVER_ADDR, HAWKBIT_PORT,
+			       NULL, HAWKBIT_RX_TIMEOUT);
 	if (ret < 0) {
 		SYS_LOG_ERR("Failed to init http ctx, err %d", ret);
 		return ret;
 	}
 
 #if defined(CONFIG_NET_CONTEXT_NET_PKT_POOL)
-	http_client_set_net_pkt_pool(&hbc.http_ctx, tx_slab, data_pool);
+	net_app_set_net_pkt_pool(&hbc.http_ctx.app_ctx, tx_slab, data_pool);
 #endif
 
 	ret = http_client_send_req(&hb_ctx->http_ctx, &hb_ctx->http_req, NULL,
@@ -679,25 +682,25 @@ static int hawkbit_query(struct hawkbit_context *hb_ctx,
 		goto cleanup;
 	}
 
-	if (hb_ctx->http_ctx.rsp.data_len == 0) {
+	if (hb_ctx->http_ctx.http.rsp.data_len == 0) {
 		SYS_LOG_ERR("No received data (rsp.data_len: %zu)",
-			    hb_ctx->http_ctx.rsp.data_len);
+			    hb_ctx->http_ctx.http.rsp.data_len);
 		ret = -EIO;
 		goto cleanup;
 	}
 
-	if (hb_ctx->http_ctx.parser.status_code != 200) {
+	if (hb_ctx->http_ctx.http.parser.status_code != 200) {
 		SYS_LOG_ERR("Invalid HTTP status code [%d]",
-			    hb_ctx->http_ctx.parser.status_code);
+			    hb_ctx->http_ctx.http.parser.status_code);
 		ret = -1;
 		goto cleanup;
 	}
 
 	if (json) {
-		json->data = hb_ctx->http_ctx.rsp.body_start;
-		json->len = strlen(hb_ctx->http_ctx.rsp.response_buf);
-		json->len -= hb_ctx->http_ctx.rsp.body_start -
-			     hb_ctx->http_ctx.rsp.response_buf;
+		json->data = hb_ctx->http_ctx.http.rsp.body_start;
+		json->len = strlen(hb_ctx->http_ctx.http.rsp.response_buf);
+		json->len -= hb_ctx->http_ctx.http.rsp.body_start -
+			     hb_ctx->http_ctx.http.rsp.response_buf;
 
 		/* FIXME: Each poll needs a new connection, this saves
 		 * us from using content from a previous package.
@@ -709,8 +712,8 @@ static int hawkbit_query(struct hawkbit_context *hb_ctx,
 	SYS_LOG_DBG("Hawkbit query completed");
 
 cleanup:
-	/* clean up TCP context */
-	http_client_release(&hb_ctx->http_ctx);
+	/* clean up context */
+	http_release(&hb_ctx->http_ctx);
 	return ret;
 }
 
@@ -772,7 +775,7 @@ static int hawkbit_report_config_data(struct hawkbit_context *hb_ctx)
 	hb_ctx->http_req.method = HTTP_PUT;
 	hb_ctx->http_req.url = hb_ctx->url_buffer;
 	hb_ctx->http_req.host = HAWKBIT_HOST;
-	hb_ctx->http_req.protocol = " " HTTP_PROTOCOL HTTP_CRLF;
+	hb_ctx->http_req.protocol = " " HTTP_PROTOCOL;
 	hb_ctx->http_req.header_fields = HTTP_HEADER_CONNECTION_CLOSE_CRLF;
 	hb_ctx->http_req.content_type_value = "application/json";
 	hb_ctx->http_req.payload = hb_ctx->status_buffer;
@@ -940,7 +943,7 @@ static int hawkbit_report_dep_fbk(struct hawkbit_context *hb_ctx,
 	hb_ctx->http_req.method = HTTP_POST;
 	hb_ctx->http_req.url = hb_ctx->url_buffer;
 	hb_ctx->http_req.host = HAWKBIT_HOST;
-	hb_ctx->http_req.protocol = " " HTTP_PROTOCOL HTTP_CRLF;
+	hb_ctx->http_req.protocol = " " HTTP_PROTOCOL;
 	hb_ctx->http_req.header_fields = HTTP_HEADER_CONNECTION_CLOSE_CRLF;
 	hb_ctx->http_req.content_type_value = "application/json";
 	hb_ctx->http_req.payload = hb_ctx->status_buffer;
@@ -991,7 +994,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	hb_ctx->http_req.method = HTTP_GET;
 	hb_ctx->http_req.url = hb_ctx->url_buffer;
 	hb_ctx->http_req.host = HAWKBIT_HOST;
-	hb_ctx->http_req.protocol = " " HTTP_PROTOCOL HTTP_CRLF;
+	hb_ctx->http_req.protocol = " " HTTP_PROTOCOL;
 	hb_ctx->http_req.header_fields = HTTP_HEADER_CONNECTION_CLOSE_CRLF;
 
 	ret = hawkbit_query(hb_ctx, &json);
@@ -1059,7 +1062,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	hb_ctx->http_req.method = HTTP_GET;
 	hb_ctx->http_req.url = hb_ctx->url_buffer;
 	hb_ctx->http_req.host = HAWKBIT_HOST;
-	hb_ctx->http_req.protocol = " " HTTP_PROTOCOL HTTP_CRLF;
+	hb_ctx->http_req.protocol = " " HTTP_PROTOCOL;
 	hb_ctx->http_req.header_fields = HTTP_HEADER_CONNECTION_CLOSE_CRLF;
 
 	if (hawkbit_query(hb_ctx, &json) < 0) {
