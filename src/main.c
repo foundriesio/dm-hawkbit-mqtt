@@ -26,9 +26,7 @@
 #include "bt_storage.h"
 #endif
 #include "hawkbit.h"
-#if defined(CONFIG_FOTA_BLUEMIX)
-#include "bluemix_temperature.h"
-#endif
+#include "mqtt_temperature.h"
 
 /*
  * GPIOs. These can be customized by device if needed.
@@ -118,15 +116,13 @@ void main(void)
 	}
 	_TC_END_RESULT(TC_PASS, "hawkbit_init");
 
-#if defined(CONFIG_FOTA_BLUEMIX)
-	TC_PRINT("Initializing Bluemix Client service\n");
-	if (bluemix_temperature_start()) {
-		_TC_END_RESULT(TC_FAIL, "bluemix_init");
+	TC_PRINT("Initializing MQTT temperature service\n");
+	if (mqtt_temperature_start()) {
+		_TC_END_RESULT(TC_FAIL, "mqtt_init");
 		TC_END_REPORT(TC_FAIL);
 		return;
 	}
-	_TC_END_RESULT(TC_PASS, "bluemix_init");
-#endif
+	_TC_END_RESULT(TC_PASS, "mqtt_init");
 
 	TC_PRINT("Blinking LED\n");
 	k_delayed_work_init(&blink_context.work, blink_handler);
