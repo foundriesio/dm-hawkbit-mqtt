@@ -1,9 +1,10 @@
 # Copyright (c) 2017 Linaro Limited
+# Copyright (c) 2017 Open Source Foundries Limited
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
-mainmenu "Linaro FOTA configuration"
+mainmenu "Open Source Foundries dm-hawkbit-mqtt Configuration"
 
 config ZEPHYR_BASE
 	string
@@ -21,7 +22,7 @@ config FOTA_DEVICE
 	  Main config to enable device specific settings
 
 config FOTA_DEVICE_SOC_SERIES_KINETIS_K6X
-	bool "Kinetis K6x FOTA settings"
+	bool "Kinetis K6x application settings"
 	select NET_L2_ETHERNET
 	select NET_SHELL
 	select NET_IPV4
@@ -31,7 +32,7 @@ config FOTA_DEVICE_SOC_SERIES_KINETIS_K6X
 	default n
 
 config FOTA_DEVICE_SOC_SERIES_NRF52X
-	bool "Nordic Semiconductor nRF52 FOTA settings"
+	bool "Nordic Semiconductor nRF52 application settings"
 	select NET_L2_BT
 	select NET_L2_BT_ZEP1656
 	select NET_IPV6
@@ -42,7 +43,7 @@ config FOTA_DEVICE_SOC_SERIES_NRF52X
 	default n
 
 config FOTA_DEVICE_SOC_SERIES_STM32F4X
-	bool "STM32F4x FOTA settings"
+	bool "STM32F4x application settings"
 	select NET_L2_BT
 	select NET_L2_BT_ZEP1656
 	select NET_IPV6
