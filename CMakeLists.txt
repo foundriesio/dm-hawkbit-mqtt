@@ -36,7 +36,6 @@ target_sources(app PRIVATE src/lib/flash_block.c)
 target_sources(app PRIVATE src/lib/mcuboot.c)
 target_sources(app PRIVATE src/lib/product_id.c)
 target_sources_ifdef(CONFIG_NET_TCP            app PRIVATE src/lib/tcp.c)
-target_sources_ifdef(CONFIG_FOTA_CONSOLE_SHELL app PRIVATE src/lib/fota_shell.c)
 
 # Application build configuration.
 target_include_directories(app PRIVATE $ENV{ZEPHYR_BASE}/net/ip)
