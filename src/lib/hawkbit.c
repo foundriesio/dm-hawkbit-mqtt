@@ -97,6 +97,11 @@ struct hawkbit_download {
 	struct k_sem *download_waitp;
 };
 
+struct hawkbit_device_acid {
+	u32_t current;
+	u32_t update;
+};
+
 struct json_data_t {
 	char *data;
 	size_t len;
@@ -113,7 +118,7 @@ typedef enum {
 static K_THREAD_STACK_DEFINE(hawkbit_thread_stack, HAWKBIT_STACK_SIZE);
 static struct k_thread hawkbit_thread_data;
 
-int poll_sleep = K_SECONDS(30);
+static int poll_sleep = K_SECONDS(30);
 static bool connection_ready;
 #if defined(CONFIG_NET_MGMT_EVENT)
 static struct net_mgmt_event_callback cb;
@@ -410,7 +415,7 @@ static const char *hawkbit_status_execution(enum hawkbit_status_exec e)
 	}
 }
 
-void hawkbit_device_acid_read(struct hawkbit_device_acid *device_acid)
+static void hawkbit_device_acid_read(struct hawkbit_device_acid *device_acid)
 {
 	flash_read(flash_dev, FLASH_AREA_APPLICATION_STATE_OFFSET, device_acid,
 		   sizeof(*device_acid));

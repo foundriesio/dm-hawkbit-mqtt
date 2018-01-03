@@ -11,14 +11,6 @@
 #define HAWKBIT_PORT	8080
 #define HAWKBIT_JSON_URL "/DEFAULT/controller/v1"
 
-extern int poll_sleep;
-
-struct hawkbit_device_acid {
-	u32_t current;
-	u32_t update;
-};
-
 int hawkbit_init(void);
-void hawkbit_device_acid_read(struct hawkbit_device_acid *device_acid);
 
 #endif	/* __FOTA_HAWKBIT_H__ */
