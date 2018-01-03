@@ -41,8 +41,8 @@
 #define MCU_TEMP_DEV		"fota-mcu-temp"
 #define OFFCHIP_TEMP_DEV	"fota-offchip-temp"
 #define MQTT_PORT		1883
-#define MQTT_DEVICE_TYPE	CONFIG_BOARD
-#define MQTT_USERNAME		"make-this-configurable"
+#define MQTT_USERNAME		CONFIG_FOTA_MQTT_USERNAME
+#define MQTT_PASSWORD		CONFIG_FOTA_MQTT_PASSWORD
 #define MQTT_CONNECT_TRIES	10
 #define APP_CONNECT_TRIES	10
 #define CONNECT_WAIT_TIMEOUT	K_MSEC(500)
@@ -66,11 +66,10 @@ BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_PEER_IPV4_ADDR) > 1,
 
 struct temp_mqtt_data {
 	/* MQTT plumbing. */
-	u8_t mh_id[30];		/* Buffer for device ID (TODO clean up) */
-	u8_t client_id[50];		/* MQTT client ID */
-	u8_t mh_auth_token[20];	/* Authentication token (TODO clean up) */
-	u8_t mh_topic[255];		/* Buffer for topic names */
-	u8_t mh_message[1024];		/* Buffer for message data */
+	u8_t mqtt_client_id[30];	/* Device-unique identifier */
+	u8_t mqtt_password[20];	/* MQTT password */
+	u8_t mqtt_topic[255];		/* Buffer for topic names */
+	u8_t mqtt_message[1024];	/* Buffer for message data */
 	struct mqtt_ctx mqtt;
 	struct mqtt_connect_msg connect_msg;
 	struct mqtt_publish_msg pub_msg;
@@ -259,39 +258,24 @@ static int temp_mqtt_connect(struct temp_mqtt_data *data)
 	return -ETIMEDOUT;
 }
 
-/*
- * Publish data to the topic and in the format expected by a Bluemix
- * broker.
- *
- * FIXME: remove the Bluemix formatting.
- */
-static int temp_mqtt_pub_bluemix_json(struct temp_mqtt_data *data,
-				      const char *fmt, ...)
+static int temp_mqtt_publish(struct temp_mqtt_data *data, const char *fmt, ...)
 {
 	struct mqtt_publish_msg *pub_msg = &data->pub_msg;
 	va_list vargs;
 	int ret;
 
-	snprintk(data->mh_topic, sizeof(data->mh_topic),
-		 "iot-2/type/%s/id/%s/evt/status/fmt/json",
-		 MQTT_DEVICE_TYPE, data->mh_id);
+	snprintk(data->mqtt_topic, sizeof(data->mqtt_topic),
+		 "id/%s/sensor-data/json", data->mqtt_client_id);
 
-	/* Fill in the initial '{"d":'. */
-	ret = snprintk(data->mh_message, sizeof(data->mh_message), "{\"d\":");
-	if (ret == sizeof(data->mh_message) - 1) {
-		return -ENOMEM;
-	}
 	/* Add the user data. */
 	va_start(vargs, fmt);
-	ret += vsnprintk(data->mh_message + ret, sizeof(data->mh_message) - ret,
-			 fmt, vargs);
+	ret = vsnprintk(data->mqtt_message, sizeof(data->mqtt_message),
+			fmt, vargs);
 	va_end(vargs);
-	if (ret > sizeof(data->mh_message) - 2) {
-		/* Overflow check: 2 = (1 for '\0') + (1 for "}") */
+	if (ret == sizeof(data->mqtt_message)) {
 		return -ENOMEM;
 	}
-	/* Append the closing brace. */
-	snprintk(data->mh_message + ret, sizeof(data->mh_message) - ret, "}");
+	data->mqtt_message[ret] = '\0';
 
 	/* Fill out the MQTT publication, and ship it.
 	 *
@@ -310,10 +294,10 @@ static int temp_mqtt_pub_bluemix_json(struct temp_mqtt_data *data,
 	 * never be transmitted at the same time, as we ought to wait
 	 * for CONNACK before sending any PINGREQs.
 	 */
-	pub_msg->msg = data->mh_message;
+	pub_msg->msg = data->mqtt_message;
 	pub_msg->msg_len = strlen(pub_msg->msg);
 	pub_msg->qos = MQTT_QoS0;
-	pub_msg->topic = data->mh_topic;
+	pub_msg->topic = data->mqtt_topic;
 	pub_msg->topic_len = strlen(pub_msg->topic);
 
 	SYS_LOG_DBG("topic: %s", data->pub_msg.topic);
@@ -362,26 +346,26 @@ static void temp_mqtt_try_to_publish(struct k_work *work)
 	}
 
 	if (data->mcu_dev && data->offchip_dev) {
-		ret = temp_mqtt_pub_bluemix_json(data,
-						 "{"
-						 "\"mcutemp\":%d,"
-						 "\"temperature\":%d"
-						 "}",
-						 mcu_val.val1,
-						 offchip_val.val1);
+		ret = temp_mqtt_publish(data,
+					"{"
+					"\"mcutemp\":%d,"
+					"\"temperature\":%d"
+					"}",
+					mcu_val.val1,
+					offchip_val.val1);
 	} else if (data->mcu_dev) {
-		ret = temp_mqtt_pub_bluemix_json(data,
-						 "{"
-						 "\"mcutemp\":%d"
-						 "}",
-						 mcu_val.val1);
+		ret = temp_mqtt_publish(data,
+					"{"
+					"\"mcutemp\":%d"
+					"}",
+					mcu_val.val1);
 	} else {
 		/* We know we have at least one device. */
-		ret = temp_mqtt_pub_bluemix_json(data,
-						 "{"
-						 "\"temperature\":%d"
-						 "}",
-						 offchip_val.val1);
+		ret = temp_mqtt_publish(data,
+					"{"
+					"\"temperature\":%d"
+					"}",
+					offchip_val.val1);
 	}
 
  out_handle_result:
@@ -400,18 +384,15 @@ static int init_mqtt_plumbing(struct temp_mqtt_data *data)
 {
 	int ret;
 
-	/*
-	 * Initialize the IDs etc. before doing anything else.
-	 *
-	 * The values used here are legacy values, which need to be
-	 * cleaned up.
-	 */
-	snprintk(data->mh_id, sizeof(data->mh_id), "%s-%08x",
-		 MQTT_DEVICE_TYPE, product_id_get()->number);
-	snprintk(data->client_id, sizeof(data->client_id), "d:%s:%s:%s",
-		 "fake-bluemix-org", MQTT_DEVICE_TYPE, data->mh_id);
-	snprintk(data->mh_auth_token, sizeof(data->mh_auth_token),
-		 "%08x", product_id_get()->number);
+	snprintk(data->mqtt_client_id, sizeof(data->mqtt_client_id), "%s-%08x",
+		 CONFIG_BOARD, product_id_get()->number);
+	if (!strcmp(MQTT_PASSWORD, "")) {
+		snprintk(data->mqtt_password, sizeof(data->mqtt_password),
+			 "%08x", product_id_get()->number);
+	} else {
+		snprintk(data->mqtt_password, sizeof(data->mqtt_password),
+			 "%s", MQTT_PASSWORD);
+	}
 
 	data->mqtt.connect = temp_mqtt_connect_cb;
 	data->mqtt.disconnect = temp_mqtt_disconnect_cb;
@@ -424,12 +405,12 @@ static int init_mqtt_plumbing(struct temp_mqtt_data *data)
 		return ret;
 	}
 
-	data->connect_msg.client_id = data->client_id;
+	data->connect_msg.client_id = data->mqtt_client_id;
 	data->connect_msg.client_id_len = strlen(data->connect_msg.client_id);
 	data->connect_msg.keep_alive = 0;
 	data->connect_msg.user_name = MQTT_USERNAME;
 	data->connect_msg.user_name_len = strlen(data->connect_msg.user_name);
-	data->connect_msg.password = data->mh_auth_token;
+	data->connect_msg.password = data->mqtt_client_id;
 	data->connect_msg.password_len = strlen(data->connect_msg.password);
 	data->connect_msg.clean_session = 1;
 

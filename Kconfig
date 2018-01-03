@@ -68,3 +68,21 @@ config SYS_LOG_FOTA_LEVEL
 	  - 2 WARNING: write SYS_LOG_WRN in addition to previous level
 	  - 3 INFO: write SYS_LOG_INF in addition to previous levels
 	  - 4 DEBUG: write SYS_LOG_DBG in addition to previous levels
+
+# TODO: get these from a credential partition instead.
+
+config FOTA_MQTT_USERNAME
+	string "MQTT username"
+	default "mqtt-username"
+	help
+	   Username value to use when connecting to MQTT broker.
+
+config FOTA_MQTT_PASSWORD
+	string "MQTT password"
+	default ""
+	help
+	   Password value to use when connecting to MQTT broker.
+
+	   If this is the empty string, a password based on the board
+	   and a board-specific ID number will be used instead. This
+	   is intended for testing and development only.
