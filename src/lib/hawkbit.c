@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2017 Linaro Limited
+ * Copyright (c) 2018 Open Source Foundries Limited
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -78,6 +79,13 @@ BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_PEER_IPV4_ADDR) > 1,
 #define STATUS_BUFFER_SIZE	200
 #define HTTP_HEADER_BUFFER_SIZE	512
 
+struct hawkbit_download {
+	size_t http_content_size;
+	size_t downloaded_size;
+	int download_progress;
+	int download_status;
+};
+
 struct hawkbit_context {
 	struct http_ctx http_ctx;
 	struct http_request http_req;
@@ -87,14 +95,8 @@ struct hawkbit_context {
 	size_t url_buffer_size;
 	u8_t status_buffer[STATUS_BUFFER_SIZE];
 	size_t status_buffer_size;
-};
-
-struct hawkbit_download {
-	size_t http_content_size;
-	size_t downloaded_size;
-	int download_progress;
-	int download_status;
-	struct k_sem *download_waitp;
+	struct hawkbit_download dl;
+	struct k_sem *sem;
 };
 
 struct hawkbit_device_acid {
@@ -129,8 +131,8 @@ static struct net_mgmt_event_callback cb;
 #define HTTP_HEADER_CONTENT_TYPE_JSON		"application/json"
 #define HTTP_HEADER_CONNECTION_CLOSE_CRLF	"Connection: close\r\n"
 
-static struct hawkbit_context hbc;
-static struct k_sem download_wait_sem;
+static struct hawkbit_context hb_context;
+static struct k_sem hb_sem;
 
 #if defined(CONFIG_NET_CONTEXT_NET_PKT_POOL)
 NET_PKT_TX_SLAB_DEFINE(http_client_tx, 15);
@@ -503,7 +505,7 @@ static void install_update_cb(struct http_ctx *ctx,
 			      enum http_final_call final_data,
 			      void *user_data)
 {
-	struct hawkbit_download *hbd = user_data;
+	struct hawkbit_context *hbc = user_data;
 	int downloaded, ret = 0;
 	u8_t *body_data = NULL;
 	size_t body_len = 0;
@@ -515,7 +517,7 @@ static void install_update_cb(struct http_ctx *ctx,
 	}
 
 	/* header hasn't been read yet */
-	if (hbd->http_content_size == 0) {
+	if (hbc->dl.http_content_size == 0) {
 		if (ctx->http.rsp.body_found == 0) {
 			SYS_LOG_ERR("Callback called w/o HTTP header found!");
 			goto error;
@@ -525,7 +527,7 @@ static void install_update_cb(struct http_ctx *ctx,
 		body_len = data_len;
 		body_len -= (ctx->http.rsp.body_start -
 			     ctx->http.rsp.response_buf);
-		hbd->http_content_size = ctx->http.rsp.content_length;
+		hbc->dl.http_content_size = ctx->http.rsp.content_length;
 	}
 
 	if (body_data == NULL) {
@@ -536,7 +538,7 @@ static void install_update_cb(struct http_ctx *ctx,
 	/* everything looks good: flash */
 	ret = flash_block_write(flash_dev,
 				FLASH_AREA_IMAGE_1_OFFSET,
-				&hbd->downloaded_size,
+				&hbc->dl.downloaded_size,
 				body_data, body_len,
 				final_data == HTTP_DATA_FINAL);
 	if (ret < 0) {
@@ -544,30 +546,30 @@ static void install_update_cb(struct http_ctx *ctx,
 		goto error;
 	}
 
-	downloaded = hbd->downloaded_size * 100 /
-		     hbd->http_content_size;
-	if (downloaded > hbd->download_progress) {
-		hbd->download_progress = downloaded;
-		SYS_LOG_DBG("%d%%", hbd->download_progress);
+	downloaded = hbc->dl.downloaded_size * 100 /
+		     hbc->dl.http_content_size;
+	if (downloaded > hbc->dl.download_progress) {
+		hbc->dl.download_progress = downloaded;
+		SYS_LOG_DBG("%d%%", hbc->dl.download_progress);
 	}
 
 	if (final_data == HTTP_DATA_FINAL) {
-		hbd->download_status = 1;
-		k_sem_give(hbd->download_waitp);
+		hbc->dl.download_status = 1;
+		k_sem_give(hbc->sem);
 	}
 
 	return;
 
 error:
-	hbd->download_status = -1;
-	k_sem_give(hbd->download_waitp);
+	hbc->dl.download_status = -1;
+	k_sem_give(hbc->sem);
 }
 
-static int hawkbit_install_update(struct hawkbit_context *hb_ctx,
+static int hawkbit_install_update(struct hawkbit_context *hbc,
 				  const char *download_http,
 				  size_t file_size)
 {
-	struct hawkbit_download hbd;
+	struct hawkbit_download *dl = &hbc->dl;
 	int ret = 0;
 	size_t last_downloaded_size = 0;
 
@@ -588,13 +590,12 @@ static int hawkbit_install_update(struct hawkbit_context *hb_ctx,
 	SYS_LOG_INF("Starting the download and flash process");
 
 	/* Receive is special for download, since it writes to flash */
-	memset(hb_ctx->tcp_buffer, 0, hb_ctx->tcp_buffer_size);
-	memset(&hbd, 0, sizeof(struct hawkbit_download));
-	hbd.download_waitp = &download_wait_sem;
-	/* reset download semaphore */
-	k_sem_init(hbd.download_waitp, 0, 1);
+	memset(hbc->tcp_buffer, 0, hbc->tcp_buffer_size);
+	memset(&hbc->dl, 0, sizeof(struct hawkbit_download));
+	/* reset download semaphore -- TODO is this really needed? */
+	k_sem_init(hbc->sem, 0, 1);
 
-	ret = http_client_init(&hbc.http_ctx,
+	ret = http_client_init(&hbc->http_ctx,
 			       HAWKBIT_SERVER_ADDR, HAWKBIT_PORT,
 			       NULL, HAWKBIT_RX_TIMEOUT);
 	if (ret < 0) {
@@ -603,71 +604,71 @@ static int hawkbit_install_update(struct hawkbit_context *hb_ctx,
 	}
 
 #if defined(CONFIG_NET_CONTEXT_NET_PKT_POOL)
-	net_app_set_net_pkt_pool(&hbc.http_ctx.app_ctx, tx_slab, data_pool);
+	net_app_set_net_pkt_pool(&hbc->http_ctx.app_ctx, tx_slab, data_pool);
 #endif
 
-	ret = http_client_send_get_req(&hb_ctx->http_ctx, download_http,
+	ret = http_client_send_get_req(&hbc->http_ctx, download_http,
 				       HAWKBIT_HOST,
 				       HTTP_HEADER_CONNECTION_CLOSE_CRLF,
 				       install_update_cb,
-				       hb_ctx->tcp_buffer,
-				       hb_ctx->tcp_buffer_size,
-				       (void *)&hbd, K_NO_WAIT);
+				       hbc->tcp_buffer,
+				       hbc->tcp_buffer_size,
+				       hbc, K_NO_WAIT);
 	/* http_client returns EINPROGRESS for get_req w/ K_NO_WAIT */
 	if (ret < 0 && ret != -EINPROGRESS) {
 		SYS_LOG_ERR("Failed to send request, err %d", ret);
 		return ret;
 	}
 
-	while (k_sem_take(hbd.download_waitp, HAWKBIT_DOWNLOAD_TIMEOUT)) {
+	while (k_sem_take(hbc->sem, HAWKBIT_DOWNLOAD_TIMEOUT)) {
 		/* wait timeout: check for download activity */
-		if (last_downloaded_size == hbd.downloaded_size) {
+		if (last_downloaded_size == dl->downloaded_size) {
 			/* no activity: break loop */
 			break;
 		} else {
-			last_downloaded_size = hbd.downloaded_size;
+			last_downloaded_size = dl->downloaded_size;
 		}
 	}
 
 	/* clean up context */
-	http_release(&hb_ctx->http_ctx);
+	http_release(&hbc->http_ctx);
 
-	if (hbd.download_status < 0) {
+	if (dl->download_status < 0) {
 		SYS_LOG_ERR("Unable to finish the download process %d",
-			    hbd.download_status);
+			    dl->download_status);
 		return -1;
 	}
 
-	if (hbd.downloaded_size != hbd.http_content_size) {
+	if (dl->downloaded_size != dl->http_content_size) {
 		SYS_LOG_ERR("Download: downloaded image size mismatch, "
 			    "downloaded %zu, expecting %zu",
-			    hbd.downloaded_size, hbd.http_content_size);
+			    dl->downloaded_size, dl->http_content_size);
 		return -1;
 	}
 
-	if (hbd.downloaded_size != file_size) {
+	if (dl->downloaded_size != file_size) {
 		SYS_LOG_ERR("Download: downloaded image size mismatch, "
 			    "downloaded %zu, expecting from JSON %zu",
-			    hbd.downloaded_size, file_size);
+			    dl->downloaded_size, file_size);
 		return -1;
 	}
 
-	SYS_LOG_INF("Download: downloaded bytes %zu", hbd.downloaded_size);
+	SYS_LOG_INF("Download: downloaded bytes %zu", dl->downloaded_size);
 	return 0;
 }
 
-static int hawkbit_query(struct hawkbit_context *hb_ctx,
+static int hawkbit_query(struct hawkbit_context *hbc,
 			 struct json_data_t *json)
 {
 	int ret = 0;
 
 	SYS_LOG_DBG("[%s] HOST:%s URL:%s",
-		    http_method_str(hb_ctx->http_req.method),
-		    hb_ctx->http_req.host, hb_ctx->http_req.url);
+		    http_method_str(hbc->http_req.method),
+		    hbc->http_req.host, hbc->http_req.url);
 
-	memset(hb_ctx->tcp_buffer, 0, hb_ctx->tcp_buffer_size);
+	memset(hbc->tcp_buffer, 0, hbc->tcp_buffer_size);
 
-	ret = http_client_init(&hbc.http_ctx,
+	ret = http_client_init(&hbc->http_ctx,
 			       HAWKBIT_SERVER_ADDR, HAWKBIT_PORT,
 			       NULL, HAWKBIT_RX_TIMEOUT);
 	if (ret < 0) {
@@ -676,36 +677,36 @@ static int hawkbit_query(struct hawkbit_context *hb_ctx,
 	}
 
 #if defined(CONFIG_NET_CONTEXT_NET_PKT_POOL)
-	net_app_set_net_pkt_pool(&hbc.http_ctx.app_ctx, tx_slab, data_pool);
+	net_app_set_net_pkt_pool(&hbc->http_ctx.app_ctx, tx_slab, data_pool);
 #endif
 
-	ret = http_client_send_req(&hb_ctx->http_ctx, &hb_ctx->http_req, NULL,
-				   hb_ctx->tcp_buffer, hb_ctx->tcp_buffer_size,
+	ret = http_client_send_req(&hbc->http_ctx, &hbc->http_req, NULL,
+				   hbc->tcp_buffer, hbc->tcp_buffer_size,
 				   NULL, HAWKBIT_RX_TIMEOUT);
 	if (ret < 0) {
 		SYS_LOG_ERR("Failed to send buffer, err %d", ret);
 		goto cleanup;
 	}
 
-	if (hb_ctx->http_ctx.http.rsp.data_len == 0) {
+	if (hbc->http_ctx.http.rsp.data_len == 0) {
 		SYS_LOG_ERR("No received data (rsp.data_len: %zu)",
-			    hb_ctx->http_ctx.http.rsp.data_len);
+			    hbc->http_ctx.http.rsp.data_len);
 		ret = -EIO;
 		goto cleanup;
 	}
 
-	if (hb_ctx->http_ctx.http.parser.status_code != 200) {
+	if (hbc->http_ctx.http.parser.status_code != 200) {
 		SYS_LOG_ERR("Invalid HTTP status code [%d]",
-			    hb_ctx->http_ctx.http.parser.status_code);
+			    hbc->http_ctx.http.parser.status_code);
 		ret = -1;
 		goto cleanup;
 	}
 
 	if (json) {
-		json->data = hb_ctx->http_ctx.http.rsp.body_start;
-		json->len = strlen(hb_ctx->http_ctx.http.rsp.response_buf);
-		json->len -= hb_ctx->http_ctx.http.rsp.body_start -
-			     hb_ctx->http_ctx.http.rsp.response_buf;
+		json->data = hbc->http_ctx.http.rsp.body_start;
+		json->len = strlen(hbc->http_ctx.http.rsp.response_buf);
+		json->len -= hbc->http_ctx.http.rsp.body_start -
+			     hbc->http_ctx.http.rsp.response_buf;
 
 		/* FIXME: Each poll needs a new connection, this saves
 		 * us from using content from a previous package.
@@ -718,7 +719,7 @@ static int hawkbit_query(struct hawkbit_context *hb_ctx,
 
 cleanup:
 	/* clean up context */
-	http_release(&hb_ctx->http_ctx);
+	http_release(&hbc->http_ctx);
 	return ret;
 }
 
@@ -742,7 +743,7 @@ static void hawkbit_update_sleep(struct hawkbit_ctl_res *hawkbit_res)
 	}
 }
 
-static int hawkbit_report_config_data(struct hawkbit_context *hb_ctx)
+static int hawkbit_report_config_data(struct hawkbit_context *hbc)
 {
 	const struct product_id_t *product_id = product_id_get();
 	char product_id_number[11]; /* This is large enough for a u32_t. */
@@ -752,7 +753,7 @@ static int hawkbit_report_config_data(struct hawkbit_context *hb_ctx)
 	SYS_LOG_INF("Reporting target config data to Hawkbit");
 
 	/* Build URL */
-	snprintk(hb_ctx->url_buffer, hb_ctx->url_buffer_size,
+	snprintk(hbc->url_buffer, hbc->url_buffer_size,
 		 "%s/%s-%x/configData", HAWKBIT_JSON_URL,
 		 product_id->name, product_id->number);
 
@@ -768,25 +769,25 @@ static int hawkbit_report_config_data(struct hawkbit_context *hb_ctx)
 	cfg.data.board = product_id->name;
 	cfg.data.serial = product_id_number;
 	ret = json_obj_encode_buf(json_cfg_descr, ARRAY_SIZE(json_cfg_descr),
-				  &cfg, hb_ctx->status_buffer,
-				  hb_ctx->status_buffer_size - 1);
+				  &cfg, hbc->status_buffer,
+				  hbc->status_buffer_size - 1);
 	if (ret) {
 		SYS_LOG_ERR("can't encode response: %d", ret);
 		return ret;
 	}
-	SYS_LOG_DBG("JSON response: %s", hb_ctx->status_buffer);
+	SYS_LOG_DBG("JSON response: %s", hbc->status_buffer);
 
-	memset(&hb_ctx->http_req, 0, sizeof(hb_ctx->http_req));
-	hb_ctx->http_req.method = HTTP_PUT;
-	hb_ctx->http_req.url = hb_ctx->url_buffer;
-	hb_ctx->http_req.host = HAWKBIT_HOST;
-	hb_ctx->http_req.protocol = " " HTTP_PROTOCOL;
-	hb_ctx->http_req.header_fields = HTTP_HEADER_CONNECTION_CLOSE_CRLF;
-	hb_ctx->http_req.content_type_value = "application/json";
-	hb_ctx->http_req.payload = hb_ctx->status_buffer;
-	hb_ctx->http_req.payload_size = strlen(hb_ctx->status_buffer);
+	memset(&hbc->http_req, 0, sizeof(hbc->http_req));
+	hbc->http_req.method = HTTP_PUT;
+	hbc->http_req.url = hbc->url_buffer;
+	hbc->http_req.host = HAWKBIT_HOST;
+	hbc->http_req.protocol = " " HTTP_PROTOCOL;
+	hbc->http_req.header_fields = HTTP_HEADER_CONNECTION_CLOSE_CRLF;
+	hbc->http_req.content_type_value = "application/json";
+	hbc->http_req.payload = hbc->status_buffer;
+	hbc->http_req.payload_size = strlen(hbc->status_buffer);
 
-	if (hawkbit_query(hb_ctx, NULL)) {
+	if (hawkbit_query(hbc, NULL)) {
 		SYS_LOG_ERR("Error when reporting config data to Hawkbit");
 		return -1;
 	}
@@ -903,7 +904,7 @@ static int hawkbit_parse_deployment(struct hawkbit_dep_res *res,
 	return 0;
 }
 
-static int hawkbit_report_dep_fbk(struct hawkbit_context *hb_ctx,
+static int hawkbit_report_dep_fbk(struct hawkbit_context *hbc,
 				  s32_t action_id,
 				  enum hawkbit_status_fini finished,
 				  enum hawkbit_status_exec execution)
@@ -923,7 +924,7 @@ static int hawkbit_report_dep_fbk(struct hawkbit_context *hb_ctx,
 		    fini, exec, action_id);
 
 	/* Build URL */
-	snprintk(hb_ctx->url_buffer, hb_ctx->url_buffer_size,
+	snprintk(hbc->url_buffer, hbc->url_buffer_size,
 		 "%s/%s-%x/deploymentBase/%d/feedback",
 		 HAWKBIT_JSON_URL, product_id->name, product_id->number,
 		 action_id);
@@ -936,25 +937,25 @@ static int hawkbit_report_dep_fbk(struct hawkbit_context *hb_ctx,
 	feedback.status.execution = exec;
 	ret = json_obj_encode_buf(json_dep_fbk_descr,
 				  ARRAY_SIZE(json_dep_fbk_descr),
-				  &feedback, hb_ctx->status_buffer,
-				  hb_ctx->status_buffer_size - 1);
+				  &feedback, hbc->status_buffer,
+				  hbc->status_buffer_size - 1);
 	if (ret) {
 		SYS_LOG_ERR("Can't encode response: %d", ret);
 		return ret;
 	}
-	SYS_LOG_DBG("JSON response: %s", hb_ctx->status_buffer);
+	SYS_LOG_DBG("JSON response: %s", hbc->status_buffer);
 
-	memset(&hb_ctx->http_req, 0, sizeof(hb_ctx->http_req));
-	hb_ctx->http_req.method = HTTP_POST;
-	hb_ctx->http_req.url = hb_ctx->url_buffer;
-	hb_ctx->http_req.host = HAWKBIT_HOST;
-	hb_ctx->http_req.protocol = " " HTTP_PROTOCOL;
-	hb_ctx->http_req.header_fields = HTTP_HEADER_CONNECTION_CLOSE_CRLF;
-	hb_ctx->http_req.content_type_value = "application/json";
-	hb_ctx->http_req.payload = hb_ctx->status_buffer;
-	hb_ctx->http_req.payload_size = strlen(hb_ctx->status_buffer);
+	memset(&hbc->http_req, 0, sizeof(hbc->http_req));
+	hbc->http_req.method = HTTP_POST;
+	hbc->http_req.url = hbc->url_buffer;
+	hbc->http_req.host = HAWKBIT_HOST;
+	hbc->http_req.protocol = " " HTTP_PROTOCOL;
+	hbc->http_req.header_fields = HTTP_HEADER_CONNECTION_CLOSE_CRLF;
+	hbc->http_req.content_type_value = "application/json";
+	hbc->http_req.payload = hbc->status_buffer;
+	hbc->http_req.payload_size = strlen(hbc->status_buffer);
 
-	ret = hawkbit_query(hb_ctx, NULL);
+	ret = hawkbit_query(hbc, NULL);
 	if (ret) {
 		SYS_LOG_ERR("Failed to report deployment feedback");
 	}
@@ -962,7 +963,7 @@ static int hawkbit_report_dep_fbk(struct hawkbit_context *hb_ctx,
 	return ret;
 }
 
-static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
+static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 {
 	/*
 	 * "Raw" decoded JSON objects.
@@ -992,17 +993,17 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	SYS_LOG_DBG("Polling target data from Hawkbit");
 
 	/* Build URL */
-	snprintk(hb_ctx->url_buffer, hb_ctx->url_buffer_size, "%s/%s-%x",
+	snprintk(hbc->url_buffer, hbc->url_buffer_size, "%s/%s-%x",
 		 HAWKBIT_JSON_URL, product_id->name, product_id->number);
 
-	memset(&hb_ctx->http_req, 0, sizeof(hb_ctx->http_req));
-	hb_ctx->http_req.method = HTTP_GET;
-	hb_ctx->http_req.url = hb_ctx->url_buffer;
-	hb_ctx->http_req.host = HAWKBIT_HOST;
-	hb_ctx->http_req.protocol = " " HTTP_PROTOCOL;
-	hb_ctx->http_req.header_fields = HTTP_HEADER_CONNECTION_CLOSE_CRLF;
+	memset(&hbc->http_req, 0, sizeof(hbc->http_req));
+	hbc->http_req.method = HTTP_GET;
+	hbc->http_req.url = hbc->url_buffer;
+	hbc->http_req.host = HAWKBIT_HOST;
+	hbc->http_req.protocol = " " HTTP_PROTOCOL;
+	hbc->http_req.header_fields = HTTP_HEADER_CONNECTION_CLOSE_CRLF;
 
-	ret = hawkbit_query(hb_ctx, &json);
+	ret = hawkbit_query(hbc, &json);
 	if (ret < 0) {
 		SYS_LOG_ERR("Error when polling from Hawkbit");
 		return ret;
@@ -1043,7 +1044,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 
 	/* Provide this device's config data if the server asked for it. */
 	if (hawkbit_results.base._links.configData.href) {
-		hawkbit_report_config_data(hb_ctx);
+		hawkbit_report_config_data(hbc);
 	}
 
 	/*
@@ -1059,18 +1060,18 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	memset(&json, 0, sizeof(struct json_data_t));
 
 	/* Build URL: Hawkbit DDI v1 deploymentBase */
-	snprintk(hb_ctx->url_buffer, hb_ctx->url_buffer_size, "%s/%s-%x/%s",
+	snprintk(hbc->url_buffer, hbc->url_buffer_size, "%s/%s-%x/%s",
 		 HAWKBIT_JSON_URL, product_id->name, product_id->number,
 		 deployment_base);
 
-	memset(&hb_ctx->http_req, 0, sizeof(hb_ctx->http_req));
-	hb_ctx->http_req.method = HTTP_GET;
-	hb_ctx->http_req.url = hb_ctx->url_buffer;
-	hb_ctx->http_req.host = HAWKBIT_HOST;
-	hb_ctx->http_req.protocol = " " HTTP_PROTOCOL;
-	hb_ctx->http_req.header_fields = HTTP_HEADER_CONNECTION_CLOSE_CRLF;
+	memset(&hbc->http_req, 0, sizeof(hbc->http_req));
+	hbc->http_req.method = HTTP_GET;
+	hbc->http_req.url = hbc->url_buffer;
+	hbc->http_req.host = HAWKBIT_HOST;
+	hbc->http_req.protocol = " " HTTP_PROTOCOL;
+	hbc->http_req.header_fields = HTTP_HEADER_CONNECTION_CLOSE_CRLF;
 
-	if (hawkbit_query(hb_ctx, &json) < 0) {
+	if (hawkbit_query(hbc, &json) < 0) {
 		SYS_LOG_ERR("Error when querying from Hawkbit");
 		return -1;
 	}
@@ -1116,7 +1117,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	hawkbit_device_acid_read(&device_acid);
 	if (device_acid.current == json_acid) {
 		/* We are coming from a successful flash, update the server */
-		ret = hawkbit_report_dep_fbk(hb_ctx, json_acid,
+		ret = hawkbit_report_dep_fbk(hbc, json_acid,
 					     HAWKBIT_STATUS_FINISHED_SUCCESS,
 					     HAWKBIT_STATUS_EXEC_CLOSED);
 		return ret;
@@ -1135,13 +1136,13 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	/* Here we should have everything we need to apply the action */
 	SYS_LOG_INF("Valid action ID %d found, proceeding with the update",
 					json_acid);
-	ret = hawkbit_report_dep_fbk(hb_ctx, json_acid,
+	ret = hawkbit_report_dep_fbk(hbc, json_acid,
 				     HAWKBIT_STATUS_FINISHED_SUCCESS,
 				     HAWKBIT_STATUS_EXEC_PROCEEDING);
 	if (ret) {
 		return ret;
 	}
-	ret = hawkbit_install_update(hb_ctx, download_http, file_size);
+	ret = hawkbit_install_update(hbc, download_http, file_size);
 	if (ret != 0) {
 		SYS_LOG_ERR("Failed to install the update for action ID %d",
 			    json_acid);
@@ -1165,14 +1166,14 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hb_ctx)
 	return 0;
 
  report_error:
-	hawkbit_report_dep_fbk(hb_ctx, json_acid,
+	hawkbit_report_dep_fbk(hbc, json_acid,
 			       HAWKBIT_STATUS_FINISHED_FAILURE,
 			       HAWKBIT_STATUS_EXEC_CLOSED);
 	return ret;
 }
 
 /* Firmware OTA thread (Hawkbit) */
-static void hawkbit_service(void)
+static void hawkbit_service(struct hawkbit_context *hbc)
 {
 	u32_t hawkbit_failures = 0;
 	int ret;
@@ -1189,7 +1190,7 @@ static void hawkbit_service(void)
 
 		tcp_interface_lock();
 
-		ret = hawkbit_ddi_poll(&hbc);
+		ret = hawkbit_ddi_poll(hbc);
 		if (ret < 0) {
 			hawkbit_failures++;
 			if (hawkbit_failures == HAWKBIT_MAX_SERVER_FAIL) {
@@ -1227,15 +1228,17 @@ int hawkbit_init(void)
 		return ret;
 	}
 
-	memset(&hbc, 0, sizeof(hbc));
-	hbc.tcp_buffer_size = TCP_RECV_BUFFER_SIZE;
-	hbc.url_buffer_size = URL_BUFFER_SIZE;
-	hbc.status_buffer_size = STATUS_BUFFER_SIZE;
+	k_sem_init(&hb_sem, 0, 1);
+	memset(&hb_context, 0, sizeof(hb_context));
+	hb_context.tcp_buffer_size = TCP_RECV_BUFFER_SIZE;
+	hb_context.url_buffer_size = URL_BUFFER_SIZE;
+	hb_context.status_buffer_size = STATUS_BUFFER_SIZE;
+	hb_context.sem = &hb_sem;
 
 	k_thread_create(&hawkbit_thread_data, &hawkbit_thread_stack[0],
 			K_THREAD_STACK_SIZEOF(hawkbit_thread_stack),
 			(k_thread_entry_t) hawkbit_service,
-			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
+			&hb_context, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
 
 #if defined(CONFIG_NET_MGMT_EVENT)
 	/* Subscribe to NET_IF_UP if interface is not ready */
