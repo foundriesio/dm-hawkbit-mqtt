@@ -93,6 +93,29 @@ static struct temp_mqtt_data temp_data;
 static struct net_mgmt_event_callback net_mgmt_cb;
 #endif
 
+#if defined(CONFIG_NET_CONTEXT_NET_PKT_POOL)
+NET_PKT_TX_SLAB_DEFINE(mqtt_client_tx, 5);
+NET_PKT_DATA_POOL_DEFINE(mqtt_client_data, 10);
+
+static struct k_mem_slab *tx_slab(void)
+{
+	return &mqtt_client_tx;
+}
+
+static struct net_buf_pool *data_pool(void)
+{
+	return &mqtt_client_data;
+}
+#else
+#if defined(CONFIG_NET_L2_BT)
+#error "TCP connections over Bluetooth need CONFIG_NET_CONTEXT_NET_PKT_POOL "\
+	"defined."
+#endif /* CONFIG_NET_L2_BT */
+
+#define tx_slab NULL
+#define data_pool NULL
+#endif /* CONFIG_NET_CONTEXT_NET_PKT_POOL */
+
 static void temp_mqtt_reboot_check(struct temp_mqtt_data *data, int result)
 {
 	if (result) {
@@ -404,6 +427,10 @@ static int init_mqtt_plumbing(struct temp_mqtt_data *data)
 	if (ret) {
 		return ret;
 	}
+
+#if defined(CONFIG_NET_CONTEXT_NET_PKT_POOL)
+	net_app_set_net_pkt_pool(&data->mqtt.net_app_ctx, tx_slab, data_pool);
+#endif
 
 	data->connect_msg.client_id = data->mqtt_client_id;
 	data->connect_msg.client_id_len = strlen(data->connect_msg.client_id);
