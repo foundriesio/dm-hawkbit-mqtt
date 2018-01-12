@@ -32,7 +32,6 @@
 #include "mcuboot.h"
 #include "flash_block.h"
 #include "product_id.h"
-#include "tcp.h"
 
 /*
  * Uncomment for extra debug printing.
@@ -1175,8 +1174,6 @@ static void hawkbit_work_fn(struct k_work *work)
 						   work);
 	int ret;
 
-	tcp_interface_lock();
-
 	ret = hawkbit_ddi_poll(hbc);
 	if (ret < 0) {
 		hbc->failures++;
@@ -1188,8 +1185,6 @@ static void hawkbit_work_fn(struct k_work *work)
 		SYS_LOG_ERR("Too many unsuccessful poll attempts, rebooting!");
 		sys_reboot(0);
 	}
-
-	tcp_interface_unlock();
 
 	k_delayed_work_submit_to_queue(hbc->work_q, &hbc->work, poll_sleep);
 }

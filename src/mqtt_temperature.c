@@ -33,7 +33,6 @@
 #include <zephyr.h>
 
 #include "product_id.h"
-#include "tcp.h"
 #include "app_work_queue.h"
 
 #define MAX_FAILURES		5
@@ -341,8 +340,6 @@ static void temp_mqtt_try_to_publish(struct k_work *work)
 	struct sensor_value offchip_val;
 	int ret = 0;
 
-	tcp_interface_lock();
-
 	if (!data->mqtt.connected) {
 		ret = temp_mqtt_connect(data);
 		if (ret) {
@@ -394,7 +391,6 @@ static void temp_mqtt_try_to_publish(struct k_work *work)
  out_handle_result:
 	temp_mqtt_handle_test_result(data, ret ? TC_FAIL : TC_PASS);
  out:
-	tcp_interface_unlock();
 	temp_mqtt_reboot_check(data, ret);
 	app_wq_submit_delayed(&data->mqtt_work, PUBLISH_DELAY_TIME);
 }
