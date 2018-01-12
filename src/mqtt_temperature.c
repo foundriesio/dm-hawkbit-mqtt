@@ -22,6 +22,7 @@
 #include <stdarg.h>
 
 #include <device.h>
+#include <json.h>
 #include <misc/reboot.h>
 #include <net/net_app.h>
 #include <net/net_event.h>
@@ -63,6 +64,21 @@ BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_PEER_IPV4_ADDR) > 1,
 #define MQTT_HELPER_SERVER_ADDR    CONFIG_NET_APP_PEER_IPV4_ADDR
 #endif
 
+/*
+ * All possible sources of data.
+ *
+ * This (or a subset of it) is what gets serialized into JSON.
+ */
+struct mqtt_sensor_data {
+	int mcutemp;
+	int temperature;
+};
+
+#define MAX_SENSOR_DATA 2
+
+/*
+ * Main context object.
+ */
 struct temp_mqtt_data {
 	/* MQTT plumbing. */
 	u8_t mqtt_client_id[30];	/* Device-unique identifier */
@@ -79,12 +95,26 @@ struct temp_mqtt_data {
 	/* Sensor data sources. */
 	struct device *mcu_dev;
 	struct device *offchip_dev;
+	struct mqtt_sensor_data sensor_data;
+	/*
+	 * This gets built up at runtime depending on the devices that
+	 * were discovered.
+	 */
+	struct json_obj_descr sensor_json_descr[MAX_SENSOR_DATA];
+	int sensor_num_sources;
 
 	/* Test reporting. */
 	struct k_work tc_work;
 	u8_t tc_results[NUM_TEST_RESULTS];
 	u8_t tc_count;
 };
+
+static const struct json_obj_descr json_mcutemp_descr =
+	JSON_OBJ_DESCR_PRIM(struct mqtt_sensor_data, mcutemp, JSON_TOK_NUMBER);
+
+static const struct json_obj_descr json_temperature_descr =
+	JSON_OBJ_DESCR_PRIM(struct mqtt_sensor_data, temperature,
+			    JSON_TOK_NUMBER);
 
 static struct temp_mqtt_data temp_data;
 
@@ -280,24 +310,25 @@ static int temp_mqtt_connect(struct temp_mqtt_data *data)
 	return -ETIMEDOUT;
 }
 
-static int temp_mqtt_publish(struct temp_mqtt_data *data, const char *fmt, ...)
+static int temp_mqtt_publish(struct temp_mqtt_data *data)
 {
 	struct mqtt_publish_msg *pub_msg = &data->pub_msg;
-	va_list vargs;
 	int ret;
 
+	/*
+	 * Set up the topic and message contents.
+	 */
 	snprintk(data->mqtt_topic, sizeof(data->mqtt_topic),
 		 "id/%s/sensor-data/json", data->mqtt_client_id);
-
-	/* Add the user data. */
-	va_start(vargs, fmt);
-	ret = vsnprintk(data->mqtt_message, sizeof(data->mqtt_message),
-			fmt, vargs);
-	va_end(vargs);
-	if (ret == sizeof(data->mqtt_message)) {
-		return -ENOMEM;
+	ret =  json_obj_encode_buf(data->sensor_json_descr,
+				   data->sensor_num_sources,
+				   &data->sensor_data,
+				   data->mqtt_message,
+				   sizeof(data->mqtt_message) - 1);
+	if (ret) {
+		SYS_LOG_ERR("json_obj_encode_buf: %d", ret);
+		return ret;
 	}
-	data->mqtt_message[ret] = '\0';
 
 	/* Fill out the MQTT publication, and ship it.
 	 *
@@ -365,28 +396,14 @@ static void temp_mqtt_try_to_publish(struct k_work *work)
 		goto out_handle_result;
 	}
 
-	if (data->mcu_dev && data->offchip_dev) {
-		ret = temp_mqtt_publish(data,
-					"{"
-					"\"mcutemp\":%d,"
-					"\"temperature\":%d"
-					"}",
-					mcu_val.val1,
-					offchip_val.val1);
-	} else if (data->mcu_dev) {
-		ret = temp_mqtt_publish(data,
-					"{"
-					"\"mcutemp\":%d"
-					"}",
-					mcu_val.val1);
-	} else {
-		/* We know we have at least one device. */
-		ret = temp_mqtt_publish(data,
-					"{"
-					"\"temperature\":%d"
-					"}",
-					offchip_val.val1);
+	if (data->mcu_dev) {
+		data->sensor_data.mcutemp = mcu_val.val1;
 	}
+	if (data->offchip_dev) {
+		data->sensor_data.temperature = offchip_val.val1;
+	}
+
+	ret = temp_mqtt_publish(data);
 
  out_handle_result:
 	temp_mqtt_handle_test_result(data, ret ? TC_FAIL : TC_PASS);
@@ -447,21 +464,36 @@ static int init_mqtt_plumbing(struct temp_mqtt_data *data)
 
 static int init_sensor_sources(struct temp_mqtt_data *data)
 {
+	int num_sources = 0;
 	data->mcu_dev = device_get_binding(MCU_TEMP_DEV);
 	data->offchip_dev = device_get_binding(OFFCHIP_TEMP_DEV);
 
 	SYS_LOG_INF("%s MCU temperature sensor %s",
 		    data->mcu_dev ? "Found" : "Did not find",
 		    MCU_TEMP_DEV);
+	if (data->mcu_dev) {
+		memcpy(&data->sensor_json_descr[num_sources],
+		       &json_mcutemp_descr,
+		       sizeof(struct json_obj_descr));
+		num_sources++;
+	}
+
 	SYS_LOG_INF("%s off-chip temperature sensor %s",
 		    data->offchip_dev ? "Found" : "Did not find",
 		    OFFCHIP_TEMP_DEV);
+	if (data->offchip_dev) {
+		memcpy(&data->sensor_json_descr[num_sources],
+		       &json_temperature_descr,
+		       sizeof(struct json_obj_descr));
+		num_sources++;
+	}
 
-	if (!data->mcu_dev && !data->offchip_dev) {
+	if (num_sources == 0) {
 		SYS_LOG_ERR("No temperature devices found.");
 		return -ENODEV;
 	}
 
+	data->sensor_num_sources = num_sources;
 	return 0;
 }
 
