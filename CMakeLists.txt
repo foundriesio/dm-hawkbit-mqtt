@@ -28,7 +28,6 @@ include($ENV{ZEPHYR_BASE}/cmake/app/boilerplate.cmake NO_POLICY_SCOPE)
 project(NONE)
 
 # Application "library" build configuration. TODO: move these out of this tree.
-target_include_directories(app PRIVATE $ENV{ZEPHYR_BASE}/lib/json)
 target_include_directories(app PRIVATE $ENV{ZEPHYR_BASE}/lib)
 
 target_sources(app PRIVATE src/lib/hawkbit.c)
