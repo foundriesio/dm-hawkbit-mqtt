@@ -11,6 +11,6 @@
 #define HAWKBIT_PORT	8080
 #define HAWKBIT_JSON_URL "/DEFAULT/controller/v1"
 
-int hawkbit_init(void);
+int hawkbit_start(struct k_work_q *work_q);
 
 #endif	/* __FOTA_HAWKBIT_H__ */

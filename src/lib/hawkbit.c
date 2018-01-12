@@ -19,7 +19,6 @@
 #include <flash.h>
 #include <zephyr.h>
 #include <misc/reboot.h>
-#include <misc/stack.h>
 #include <net/http.h>
 #include <net/net_app.h>
 #include <net/net_event.h>
@@ -87,6 +86,7 @@ struct hawkbit_download {
 };
 
 struct hawkbit_context {
+	int failures;
 	struct http_ctx http_ctx;
 	struct http_request http_req;
 	u8_t tcp_buffer[TCP_RECV_BUFFER_SIZE];
@@ -96,6 +96,8 @@ struct hawkbit_context {
 	u8_t status_buffer[STATUS_BUFFER_SIZE];
 	size_t status_buffer_size;
 	struct hawkbit_download dl;
+	struct k_work_q *work_q;
+	struct k_delayed_work work;
 	struct k_sem *sem;
 };
 
@@ -116,12 +118,7 @@ typedef enum {
 
 #define HAWKBIT_RX_TIMEOUT	K_SECONDS(10)
 
-#define HAWKBIT_STACK_SIZE 2300
-static K_THREAD_STACK_DEFINE(hawkbit_thread_stack, HAWKBIT_STACK_SIZE);
-static struct k_thread hawkbit_thread_data;
-
 static int poll_sleep = K_SECONDS(30);
-static bool connection_ready;
 #if defined(CONFIG_NET_MGMT_EVENT)
 static struct net_mgmt_event_callback cb;
 #endif
@@ -459,7 +456,7 @@ static int hawkbit_device_acid_update(hawkbit_dev_acid_t type,
 	return ret;
 }
 
-static int hawkbit_start(void)
+static int hawkbit_init_flash(void)
 {
 	int ret = 0;
 	struct hawkbit_device_acid init_acid;
@@ -1158,7 +1155,6 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 	}
 	SYS_LOG_INF("Image id %d flashed successfuly, rebooting now",
 					json_acid);
-	STACK_ANALYZE("Hawkbit Thread", hawkbit_thread_stack);
 
 	/* Reboot and let the bootloader take care of the swap process */
 	sys_reboot(0);
@@ -1172,56 +1168,47 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 	return ret;
 }
 
-/* Firmware OTA thread (Hawkbit) */
-static void hawkbit_service(struct hawkbit_context *hbc)
+/* OTA worker */
+static void hawkbit_work_fn(struct k_work *work)
 {
-	u32_t hawkbit_failures = 0;
+	struct hawkbit_context *hbc = CONTAINER_OF(work, struct hawkbit_context,
+						   work);
 	int ret;
 
-	SYS_LOG_INF("Starting FOTA Service Thread");
+	tcp_interface_lock();
 
-	do {
-		k_sleep(poll_sleep);
+	ret = hawkbit_ddi_poll(hbc);
+	if (ret < 0) {
+		hbc->failures++;
+	} else {
+		/* restart the failed attempt counter */
+		hbc->failures = 0;
+	}
+	if (hbc->failures == HAWKBIT_MAX_SERVER_FAIL) {
+		SYS_LOG_ERR("Too many unsuccessful poll attempts, rebooting!");
+		sys_reboot(0);
+	}
 
-		if (!connection_ready) {
-			SYS_LOG_DBG("Network interface is not ready");
-			continue;
-		}
+	tcp_interface_unlock();
 
-		tcp_interface_lock();
-
-		ret = hawkbit_ddi_poll(hbc);
-		if (ret < 0) {
-			hawkbit_failures++;
-			if (hawkbit_failures == HAWKBIT_MAX_SERVER_FAIL) {
-				SYS_LOG_ERR("Too many unsuccessful poll"
-					    " attempts, rebooting!");
-				sys_reboot(0);
-			}
-		} else {
-			/* restart the failed attempt counter */
-			hawkbit_failures = 0;
-		}
-
-		tcp_interface_unlock();
-
-		STACK_ANALYZE("Hawkbit Thread", hawkbit_thread_stack);
-	} while (1);
+	k_delayed_work_submit_to_queue(hbc->work_q, &hbc->work, poll_sleep);
 }
 
 static void event_iface_up(struct net_mgmt_event_callback *cb,
 			   u32_t mgmt_event, struct net_if *iface)
 {
-	connection_ready = true;
+	SYS_LOG_INF("Submitting FOTA Service work");
+	k_delayed_work_submit_to_queue(hb_context.work_q, &hb_context.work,
+				       poll_sleep);
 }
 
-int hawkbit_init(void)
+int hawkbit_start(struct k_work_q *work_q)
 {
 	/* TODO: default interface may not always be the one we want */
 	struct net_if *iface = net_if_get_default();
 	int ret;
 
-	ret = hawkbit_start();
+	ret = hawkbit_init_flash();
 	if (ret) {
 		SYS_LOG_ERR("Hawkbit Client initialization generated "
 			    "an error: %d", ret);
@@ -1233,12 +1220,9 @@ int hawkbit_init(void)
 	hb_context.tcp_buffer_size = TCP_RECV_BUFFER_SIZE;
 	hb_context.url_buffer_size = URL_BUFFER_SIZE;
 	hb_context.status_buffer_size = STATUS_BUFFER_SIZE;
+	hb_context.work_q = work_q;
+	k_delayed_work_init(&hb_context.work, hawkbit_work_fn);
 	hb_context.sem = &hb_sem;
-
-	k_thread_create(&hawkbit_thread_data, &hawkbit_thread_stack[0],
-			K_THREAD_STACK_SIZEOF(hawkbit_thread_stack),
-			(k_thread_entry_t) hawkbit_service,
-			&hb_context, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
 
 #if defined(CONFIG_NET_MGMT_EVENT)
 	/* Subscribe to NET_IF_UP if interface is not ready */

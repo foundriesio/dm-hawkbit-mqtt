@@ -37,7 +37,7 @@ void main(void)
 	TC_START("Running Built in Self Test (BIST)");
 
 	TC_PRINT("Initializing Hawkbit backend\n");
-	if (hawkbit_init()) {
+	if (hawkbit_start(app_work_q)) {
 		_TC_END_RESULT(TC_FAIL, "hawkbit_init");
 		TC_END_REPORT(TC_FAIL);
 		return;
