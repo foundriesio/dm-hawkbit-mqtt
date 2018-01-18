@@ -29,7 +29,7 @@
 
 #include "product_id.h"
 
-#if defined(CONFIG_BOARD_96B_NITROGEN) || defined(CONFIG_BOARD_96B_CARBON)
+#if defined(CONFIG_BOARD_96B_NITROGEN)
 #define BT_CONNECT_LED	BT_GPIO_PIN
 #define GPIO_DRV_BT	BT_GPIO_PORT
 #endif
