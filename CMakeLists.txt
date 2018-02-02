@@ -31,8 +31,6 @@ project(NONE)
 target_include_directories(app PRIVATE $ENV{ZEPHYR_BASE}/lib)
 
 target_sources(app PRIVATE src/lib/hawkbit.c)
-target_sources(app PRIVATE src/lib/flash_block.c)
-target_sources(app PRIVATE src/lib/mcuboot.c)
 target_sources(app PRIVATE src/lib/product_id.c)
 
 # Application build configuration.

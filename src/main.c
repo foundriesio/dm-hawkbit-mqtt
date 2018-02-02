@@ -19,12 +19,9 @@
 #include "tstamp_log.h"
 #include "app_work_queue.h"
 #include "blink_led.h"
-#include "mcuboot.h"
 #include "product_id.h"
 #include "hawkbit.h"
 #include "mqtt_temperature.h"
-
-struct device *flash_dev;
 
 void main(void)
 {

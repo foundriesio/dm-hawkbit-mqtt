@@ -18,6 +18,8 @@
 #include <misc/byteorder.h>
 #include <flash.h>
 #include <zephyr.h>
+#include <dfu/mcuboot.h>
+#include <dfu/flash_img.h>
 #include <misc/reboot.h>
 #include <net/http.h>
 #include <net/net_app.h>
@@ -29,8 +31,6 @@
 
 #include "hawkbit.h"
 #include "hawkbit_priv.h"
-#include "mcuboot.h"
-#include "flash_block.h"
 #include "product_id.h"
 
 /*
@@ -152,6 +152,11 @@ static struct net_buf_pool *data_pool(void)
 #define tx_slab NULL
 #define data_pool NULL
 #endif /* CONFIG_NET_CONTEXT_NET_PKT_POOL */
+
+static struct device *flash_dev;
+static struct flash_img_context dfu_ctx;
+
+#define FLASH_BANK_SIZE FLASH_AREA_IMAGE_1_SIZE
 
 /*
  * Descriptors for mapping between JSON and structure representations.
@@ -455,22 +460,60 @@ static int hawkbit_device_acid_update(hawkbit_dev_acid_t type,
 	return ret;
 }
 
+/* Log the semantic version number of the current image. */
+static void log_img_ver(void)
+{
+	struct mcuboot_img_header header;
+	struct mcuboot_img_sem_ver *ver;
+	int ret;
+
+	ret = boot_read_bank_header(FLASH_AREA_IMAGE_0_OFFSET,
+				    &header, sizeof(header));
+	if (ret) {
+		SYS_LOG_ERR("can't read header: %d", ret);
+		return;
+	} else if (header.mcuboot_version != 1) {
+		SYS_LOG_ERR("unsupported MCUboot version %u",
+			    header.mcuboot_version);
+		return;
+	}
+
+	ver = &header.h.v1.sem_ver;
+	SYS_LOG_INF("image version %u.%u.%u build #%u",
+		    ver->major, ver->minor, ver->revision, ver->build_num);
+}
+
 static int hawkbit_init_flash(void)
 {
 	int ret = 0;
 	struct hawkbit_device_acid init_acid;
-	u8_t boot_status;
+	bool image_ok;
+
+	/*
+	 * Initialize the DFU context.
+	 */
+	flash_dev = device_get_binding(FLASH_DRIVER_NAME);
+	if (!flash_dev) {
+		SYS_LOG_ERR("missing flash device %s", FLASH_DRIVER_NAME);
+		return -ENODEV;
+	}
+
+	log_img_ver();
 
 	/* Update boot status and acid */
 	hawkbit_device_acid_read(&init_acid);
 	SYS_LOG_INF("ACID: current %d, update %d",
 		    init_acid.current, init_acid.update);
-	boot_status = boot_status_read();
-	SYS_LOG_INF("Current boot status %x", boot_status);
-	if (boot_status == BOOT_STATUS_ONGOING) {
-		boot_status_update();
-		SYS_LOG_INF("Updated boot status to %x", boot_status_read());
-		ret = boot_erase_flash_bank(FLASH_AREA_IMAGE_1_OFFSET);
+	image_ok = boot_is_img_confirmed();
+	SYS_LOG_INF("Image is%s confirmed OK", image_ok ? "" : " not");
+	if (!image_ok) {
+		ret = boot_write_img_confirmed();
+		if (ret) {
+			SYS_LOG_ERR("Couldn't confirm this image: %d", ret);
+			return ret;
+		}
+		SYS_LOG_INF("Marked image as OK");
+		ret = boot_erase_img_bank(FLASH_AREA_IMAGE_1_OFFSET);
 		if (ret) {
 			SYS_LOG_ERR("Flash bank erase at offset %x: error %d",
 				    FLASH_AREA_IMAGE_1_OFFSET, ret);
@@ -532,15 +575,14 @@ static void install_update_cb(struct http_ctx *ctx,
 	}
 
 	/* everything looks good: flash */
-	ret = flash_block_write(flash_dev,
-				FLASH_AREA_IMAGE_1_OFFSET,
-				&hbc->dl.downloaded_size,
-				body_data, body_len,
-				final_data == HTTP_DATA_FINAL);
+	ret = flash_img_buffered_write(&dfu_ctx,
+				       body_data, body_len,
+				       final_data == HTTP_DATA_FINAL);
 	if (ret < 0) {
 		SYS_LOG_ERR("Flash write error: %d", ret);
 		goto error;
 	}
+	hbc->dl.downloaded_size = flash_img_bytes_written(&dfu_ctx);
 
 	downloaded = hbc->dl.downloaded_size * 100 /
 		     hbc->dl.http_content_size;
@@ -590,6 +632,8 @@ static int hawkbit_install_update(struct hawkbit_context *hbc,
 	memset(&hbc->dl, 0, sizeof(struct hawkbit_download));
 	/* reset download semaphore -- TODO is this really needed? */
 	k_sem_init(hbc->sem, 0, 1);
+	/* Re-initialize the flash writer state. */
+	flash_img_init(&dfu_ctx, flash_dev);
 
 	ret = http_client_init(&hbc->http_ctx,
 			       HAWKBIT_SERVER_ADDR, HAWKBIT_PORT,
@@ -1146,7 +1190,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 	}
 
 	SYS_LOG_INF("Triggering OTA update.");
-	boot_trigger_ota();
+	boot_request_upgrade(false);
 	ret = hawkbit_device_acid_update(HAWKBIT_ACID_UPDATE, json_acid);
 	if (ret != 0) {
 		SYS_LOG_ERR("Failed to update ACID: %d", ret);
