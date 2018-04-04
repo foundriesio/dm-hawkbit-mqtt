@@ -12,8 +12,11 @@
  *
  * Temperature data can come from up to two sources:
  *
- * 1. One on-chip temperature sensor, named "fota-mcu-temp"
- * 2. One off-chip temperature sensor, named "fota-offchip-temp"
+ * 1. One die temperature sensor, named "fota-die-temp".  This doesn't
+ *    have to be the SoC die. It could be an off-chip temperature
+ *    sensor that nonetheless reports on-die temperature.
+ *
+ * 2. One ambient temperature sensor, named "fota-ambient-temp".
  *
  * The target configuration can ensure that a Zephyr temperature
  * sensor device has one of the given names, by configuring the device

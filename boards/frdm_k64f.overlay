@@ -9,6 +9,6 @@
 
 &i2c0 {
 	fxos8700@1d {
-		label = "fota-offchip-temp";
+		label = "fota-die-temp";
 	};
 };

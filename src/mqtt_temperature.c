@@ -39,8 +39,8 @@
 
 #define MAX_FAILURES		5
 #define NUM_TEST_RESULTS	5
-#define MCU_TEMP_DEV		"fota-mcu-temp"
-#define OFFCHIP_TEMP_DEV	"fota-offchip-temp"
+#define AMB_TEMP_DEV		"fota-ambient-temp"
+#define DIE_TEMP_DEV		"fota-die-temp"
 #define MQTT_PORT		1883
 #define MQTT_USERNAME		CONFIG_FOTA_MQTT_USERNAME
 #define MQTT_PASSWORD		CONFIG_FOTA_MQTT_PASSWORD
@@ -71,8 +71,8 @@ BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_PEER_IPV4_ADDR) > 1,
  * This (or a subset of it) is what gets serialized into JSON.
  */
 struct mqtt_sensor_data {
-	int mcutemp;
-	int temperature;
+	int amb_temp;
+	int die_temp;
 };
 
 #define MAX_SENSOR_DATA 2
@@ -94,8 +94,8 @@ struct temp_mqtt_data {
 	int failures;
 
 	/* Sensor data sources. */
-	struct device *mcu_dev;
-	struct device *offchip_dev;
+	struct device *amb_dev;
+	struct device *die_dev;
 	struct mqtt_sensor_data sensor_data;
 	/*
 	 * This gets built up at runtime depending on the devices that
@@ -110,11 +110,11 @@ struct temp_mqtt_data {
 	u8_t tc_count;
 };
 
-static const struct json_obj_descr json_mcutemp_descr =
-	JSON_OBJ_DESCR_PRIM(struct mqtt_sensor_data, mcutemp, JSON_TOK_NUMBER);
+static const struct json_obj_descr json_amb_temp_descr =
+	JSON_OBJ_DESCR_PRIM(struct mqtt_sensor_data, amb_temp, JSON_TOK_NUMBER);
 
-static const struct json_obj_descr json_temperature_descr =
-	JSON_OBJ_DESCR_PRIM(struct mqtt_sensor_data, temperature,
+static const struct json_obj_descr json_die_temp_descr =
+	JSON_OBJ_DESCR_PRIM(struct mqtt_sensor_data, die_temp,
 			    JSON_TOK_NUMBER);
 
 static struct temp_mqtt_data temp_data;
@@ -163,6 +163,7 @@ static void temp_mqtt_reboot_check(struct temp_mqtt_data *data, int result)
  */
 
 static int read_temperature(struct device *temp_dev,
+			    enum sensor_channel temp_channel,
 			    struct sensor_value *temp_val)
 {
 	__unused const char *name = temp_dev->config->name;
@@ -174,7 +175,7 @@ static int read_temperature(struct device *temp_dev,
 		return ret;
 	}
 
-	ret = sensor_channel_get(temp_dev, SENSOR_CHAN_TEMP, temp_val);
+	ret = sensor_channel_get(temp_dev, temp_channel, temp_val);
 	if (ret) {
 		SYS_LOG_ERR("%s: can't get data: %d", name, ret);
 		return ret;
@@ -369,7 +370,7 @@ static void temp_mqtt_try_to_publish(struct k_work *work)
 	struct temp_mqtt_data *data =
 		CONTAINER_OF(work, struct temp_mqtt_data, mqtt_work);
 	struct sensor_value mcu_val;
-	struct sensor_value offchip_val;
+	struct sensor_value die_val;
 	int ret = 0;
 
 	if (!data->mqtt.connected) {
@@ -384,24 +385,28 @@ static void temp_mqtt_try_to_publish(struct k_work *work)
 	 * Try to read temperature sensor values, and publish the
 	 * whole number portion of temperatures that are read.
 	 */
-	if (data->mcu_dev) {
-		ret = read_temperature(data->mcu_dev, &mcu_val);
+	if (data->amb_dev) {
+		ret = read_temperature(data->amb_dev,
+				       SENSOR_CHAN_AMBIENT_TEMP,
+				       &mcu_val);
 	}
 	if (ret) {
 		goto out_handle_result;
 	}
-	if (data->offchip_dev) {
-		ret = read_temperature(data->offchip_dev, &offchip_val);
+	if (data->die_dev) {
+		ret = read_temperature(data->die_dev,
+				       SENSOR_CHAN_DIE_TEMP,
+				       &die_val);
 	}
 	if (ret) {
 		goto out_handle_result;
 	}
 
-	if (data->mcu_dev) {
-		data->sensor_data.mcutemp = mcu_val.val1;
+	if (data->amb_dev) {
+		data->sensor_data.amb_temp = mcu_val.val1;
 	}
-	if (data->offchip_dev) {
-		data->sensor_data.temperature = offchip_val.val1;
+	if (data->die_dev) {
+		data->sensor_data.die_temp = die_val.val1;
 	}
 
 	ret = temp_mqtt_publish(data);
@@ -466,25 +471,25 @@ static int init_mqtt_plumbing(struct temp_mqtt_data *data)
 static int init_sensor_sources(struct temp_mqtt_data *data)
 {
 	int num_sources = 0;
-	data->mcu_dev = device_get_binding(MCU_TEMP_DEV);
-	data->offchip_dev = device_get_binding(OFFCHIP_TEMP_DEV);
+	data->amb_dev = device_get_binding(AMB_TEMP_DEV);
+	data->die_dev = device_get_binding(DIE_TEMP_DEV);
 
-	SYS_LOG_INF("%s MCU temperature sensor %s",
-		    data->mcu_dev ? "Found" : "Did not find",
-		    MCU_TEMP_DEV);
-	if (data->mcu_dev) {
+	SYS_LOG_INF("%s ambient temperature sensor %s",
+		    data->amb_dev ? "Found" : "Did not find",
+		    AMB_TEMP_DEV);
+	if (data->amb_dev) {
 		memcpy(&data->sensor_json_descr[num_sources],
-		       &json_mcutemp_descr,
+		       &json_amb_temp_descr,
 		       sizeof(struct json_obj_descr));
 		num_sources++;
 	}
 
-	SYS_LOG_INF("%s off-chip temperature sensor %s",
-		    data->offchip_dev ? "Found" : "Did not find",
-		    OFFCHIP_TEMP_DEV);
-	if (data->offchip_dev) {
+	SYS_LOG_INF("%s die temperature sensor %s",
+		    data->die_dev ? "Found" : "Did not find",
+		    DIE_TEMP_DEV);
+	if (data->die_dev) {
 		memcpy(&data->sensor_json_descr[num_sources],
-		       &json_temperature_descr,
+		       &json_die_temp_descr,
 		       sizeof(struct json_obj_descr));
 		num_sources++;
 	}
