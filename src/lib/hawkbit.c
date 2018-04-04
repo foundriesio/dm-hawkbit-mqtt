@@ -24,6 +24,7 @@
 #include <net/http.h>
 #include <net/net_app.h>
 #include <net/net_event.h>
+#include <net/net_if.h>
 #include <net/net_mgmt.h>
 #include <json.h>
 
@@ -1264,8 +1265,8 @@ int hawkbit_start(struct k_work_q *work_q)
 	hb_context.sem = &hb_sem;
 
 #if defined(CONFIG_NET_MGMT_EVENT)
-	/* Subscribe to NET_IF_UP if interface is not ready */
-	if (!atomic_test_bit(iface->flags, NET_IF_UP)) {
+	/* Subscribe to NET_EVENT_IF_UP if interface is not ready */
+	if (!net_if_is_up(iface)) {
 		net_mgmt_init_event_callback(&cb, event_iface_up,
 					     NET_EVENT_IF_UP);
 		net_mgmt_add_event_callback(&cb);

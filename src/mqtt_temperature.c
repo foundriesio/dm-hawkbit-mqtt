@@ -26,6 +26,7 @@
 #include <misc/reboot.h>
 #include <net/net_app.h>
 #include <net/net_event.h>
+#include <net/net_if.h>
 #include <net/net_mgmt.h>
 #include <net/mqtt.h>
 #include <sensor.h>
@@ -547,8 +548,8 @@ int mqtt_temperature_start(void)
 	 * publishing.
 	 */
 #if defined(CONFIG_NET_MGMT_EVENT)
-	/* Subscribe to NET_IF_UP if interface is not ready */
-	if (!atomic_test_bit(iface->flags, NET_IF_UP)) {
+	/* Subscribe to NET_EVENT_IF_UP if interface is not ready */
+	if (!net_if_is_up(iface)) {
 		net_mgmt_init_event_callback(&net_mgmt_cb,
 					     temp_mqtt_start,
 					     NET_EVENT_IF_UP);
