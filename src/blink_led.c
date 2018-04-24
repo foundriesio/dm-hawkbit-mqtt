@@ -20,7 +20,11 @@
  * GPIOs. These can be customized by device if needed.
  */
 #define LED_GPIO_PIN	LED0_GPIO_PIN
+#if defined(LED0_GPIO_PORT)
 #define LED_GPIO_PORT	LED0_GPIO_PORT
+#else
+#define LED_GPIO_PORT	LED0_GPIO_CONTROLLER
+#endif
 
 #define BLINK_DELAY     K_SECONDS(1)
 
