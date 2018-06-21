@@ -4,9 +4,12 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-mainmenu "Open Source Foundries dm-hawkbit-mqtt Configuration"
-
+# Leave this at the top unless Zephyr's Kconfig behavior changes to
+# use the first default it finds. (Currently it differs from the Linux
+# behavior, which is to use the first default).
 source "$ZEPHYR_BASE/Kconfig.zephyr"
+
+mainmenu "Open Source Foundries dm-hawkbit-mqtt Configuration"
 
 config FOTA_DEVICE
 	bool "Enable FOTA device settings"
@@ -21,18 +24,45 @@ config FOTA_DEVICE_SOC_SERIES_KINETIS_K6X
 	select NET_SHELL
 	select NET_IPV4
 	select NET_APP_NEED_IPV4
-	select NET_UDP
+	select NET_UDP # for DHCP
 	select NET_APP_SETTINGS
 	default n
+
+if FOTA_DEVICE_SOC_SERIES_KINETIS_K6X
+
+# IPv6 is enabled by default in Zephyr's Kconfig when networking is selected.
+config NET_IPV6
+	default n
+
+endif # FOTA_DEVICE_SOC_SERIES_KINETIS_K6X
 
 config FOTA_DEVICE_SOC_SERIES_NRF52X
 	bool "Nordic Semiconductor nRF52 application settings"
 	select NET_IPV6
 	select NET_APP_NEED_IPV6
+	select NET_APP_BT_NODE
 	select SENSOR
 	select TEMP_NRF5
 	select ENTROPY_NRF5_RNG
 	default n
+
+if FOTA_DEVICE_SOC_SERIES_NRF52X
+
+config BT_DEVICE_NAME
+	default "Linaro IPSP node"
+
+config NET_UDP
+	default n
+
+# The following BT configs are not needed in peripheral mode.
+
+config BT_CTLR_CONN_PARAM_REQ
+	default n
+
+config BT_CTLR_ADV_EXT
+	default n
+
+endif # FOTA_DEVICE_SOC_SERIES_NRF52X
 
 config SYS_LOG_FOTA_LEVEL
 	int "FOTA log level"
