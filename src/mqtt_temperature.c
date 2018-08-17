@@ -52,17 +52,17 @@
 
 /* Network configuration checks */
 #if defined(CONFIG_NET_IPV6)
-BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_PEER_IPV6_ADDR) > 1,
-		"CONFIG_NET_APP_PEER_IPV6_ADDR must be defined in boards/$(BOARD)-local.conf");
-#define MQTT_HELPER_SERVER_ADDR    CONFIG_NET_APP_PEER_IPV6_ADDR
+BUILD_ASSERT_MSG(sizeof(CONFIG_NET_CONFIG_PEER_IPV6_ADDR) > 1,
+		"CONFIG_NET_CONFIG_PEER_IPV6_ADDR must be defined in boards/$(BOARD)-local.conf");
+#define MQTT_HELPER_SERVER_ADDR    CONFIG_NET_CONFIG_PEER_IPV6_ADDR
 #elif defined(CONFIG_NET_IPV4)
 #if !defined(CONFIG_NET_DHCPV4)
-BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_MY_IPV4_ADDR) > 1,
-		"DHCPv4 must be enabled, or CONFIG_NET_APP_MY_IPV4_ADDR must be defined, in boards/$(BOARD)-local.conf");
+BUILD_ASSERT_MSG(sizeof(CONFIG_NET_CONFIG_MY_IPV4_ADDR) > 1,
+		"DHCPv4 must be enabled, or CONFIG_NET_CONFIG_MY_IPV4_ADDR must be defined, in boards/$(BOARD)-local.conf");
 #endif
-BUILD_ASSERT_MSG(sizeof(CONFIG_NET_APP_PEER_IPV4_ADDR) > 1,
-		"CONFIG_NET_APP_PEER_IPV4_ADDR must be defined in boards/$(BOARD)-local.conf");
-#define MQTT_HELPER_SERVER_ADDR    CONFIG_NET_APP_PEER_IPV4_ADDR
+BUILD_ASSERT_MSG(sizeof(CONFIG_NET_CONFIG_PEER_IPV4_ADDR) > 1,
+		"CONFIG_NET_CONFIG_PEER_IPV4_ADDR must be defined in boards/$(BOARD)-local.conf");
+#define MQTT_HELPER_SERVER_ADDR    CONFIG_NET_CONFIG_PEER_IPV4_ADDR
 #endif
 
 /*
