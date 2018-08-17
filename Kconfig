@@ -5,11 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# Leave this at the top unless Zephyr's Kconfig behavior changes to
-# use the first default it finds. (Currently it differs from the Linux
-# behavior, which is to use the first default).
-source "$ZEPHYR_BASE/Kconfig.zephyr"
-
 mainmenu "Open Source Foundries dm-hawkbit-mqtt Configuration"
 
 config FOTA_DEVICE
@@ -98,3 +93,7 @@ config FOTA_MQTT_PASSWORD
 	   If this is the empty string, a password based on the board
 	   and a board-specific ID number will be used instead. This
 	   is intended for testing and development only.
+
+# Leave this at the bottom: we need to override Zephyr's default settings
+# with some of the values above.
+source "$ZEPHYR_BASE/Kconfig.zephyr"
