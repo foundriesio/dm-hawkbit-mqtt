@@ -39,6 +39,7 @@ config FOTA_DEVICE_SOC_SERIES_NRF52X
 	select SENSOR
 	select TEMP_NRF5
 	select ENTROPY_NRF5_RNG
+	select NET_SHELL if SOC_NRF52840
 	default n
 
 if FOTA_DEVICE_SOC_SERIES_NRF52X
@@ -46,8 +47,49 @@ if FOTA_DEVICE_SOC_SERIES_NRF52X
 config BT_DEVICE_NAME
 	default "ZMP IPSP node"
 
+config TEMP_NRF5_NAME
+	default "fota-die-temp"
+
+config NET_CONFIG_PEER_IPV6_ADDR
+	default "fe80::d4e7:0:0:1"
+
+config NET_L2_BT
+	default y
+
+config NET_IF_UNICAST_IPV6_ADDR_COUNT
+	default 3
+
+config NET_IF_MCAST_IPV6_ADDR_COUNT
+	default 2
+
+config NET_CONFIG_INIT_TIMEOUT
+	default 0
+
+config NET_TCP_RETRY_COUNT
+	# Reduced TCP retry count (default is 9) to avoid locking up the net and
+	# bluetooth stack on packet retransmission as it consumes too much ram
+	default 2 if SOC_NRF52832
+
 config NET_UDP
 	default n
+
+config BT_RX_BUF_COUNT
+	default 10
+
+config BT_RX_BUF_LEN
+	default 128
+
+config BT_CTLR_RX_BUFFERS
+	default 6
+
+config BT_CTLR_TX_BUFFERS
+	default 7
+
+config BT_RX_STACK_SIZE
+	default 2048
+
+config BT_L2CAP_TX_BUF_COUNT
+	default 6
 
 # The following BT configs are not needed in peripheral mode.
 
