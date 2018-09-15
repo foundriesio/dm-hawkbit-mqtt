@@ -184,13 +184,16 @@ def main():
     description = 'Simple Hawkbit API Wrapper'
     parser = argparse.ArgumentParser(version=__version__,
                                      description=description)
-    parser.add_argument('-p', '--provider', help='SW Module Provider',
+    parser.add_argument('-p', '--provider', help='SW Module provider',
                         required=True)
-    parser.add_argument('-n', '--name', help='Name', required=True)
-    parser.add_argument('-t', '--type', help='Name', required=True)
-    parser.add_argument('-sv', '--swversion', help='Version', required=True)
-    parser.add_argument('-d', '--description', help='Version', required=True)
-    parser.add_argument('-f', '--file', help='Version', required=True)
+    parser.add_argument('-n', '--name', help='SW Module name',
+                        required=True)
+    parser.add_argument('-t', '--type', help='SW Module type', required=True)
+    parser.add_argument('-sv', '--swversion', help='SW Module version',
+                        required=True)
+    parser.add_argument('-d', '--description', help='SW Module description',
+                        required=True)
+    parser.add_argument('-f', '--file', help='Artifact to upload', required=True)
     parser.add_argument('-ds', '--distribution-sets',
                         help='Distribution Sets URL', default=DS_URL_DEFAULT)
     parser.add_argument('-sm', '--software-modules',
