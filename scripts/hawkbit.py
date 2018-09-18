@@ -17,7 +17,7 @@ RO_URL_DEFAULT = 'http://localhost:8080/rest/v1/rollouts'
 
 ROLLOUT_START_DELAY = 5
 
-def start_rollout(version, ds_id, ro_url, rollout_filter):
+def start_rollout(version, ds_id, ro_url, rollout_filter, verbose):
     headers = {'Content-Type': 'application/hal+json;charset=UTF-8',
                'Accept': 'application/hal+json'}
     ds = {'distributionSetId': ds_id,
@@ -30,6 +30,7 @@ def start_rollout(version, ds_id, ro_url, rollout_filter):
           'errorAction': {'expression': '', 'action': 'PAUSE'},
           'errorCondition': {'condition': 'THRESHOLD', 'expression': 80}
     }
+    print('Creating Rollout: ' + rollout_name)
     response = requests.post(ro_url, data=json.dumps(ds),
                              auth=(user, password), headers=headers)
 
@@ -38,8 +39,9 @@ def start_rollout(version, ds_id, ro_url, rollout_filter):
 
     response = response.json()
 
-    print('Got response from server when creating rollout:')
-    pprint.pprint(response)
+    if verbose:
+        print('Got response from server when creating rollout:')
+        pprint.pprint(response)
 
     start_url = response['_links']['start'].get('href')
 
@@ -59,11 +61,12 @@ def start_rollout(version, ds_id, ro_url, rollout_filter):
 
 def publish_ds(provider, name, type, version, description, artifact,
                ds_url, ro_url, rollout_filter, sm_id, artifacts_url, self_url,
-               type_url, metadata_url):
+               type_url, metadata_url, verbose):
     # Upload Artifact
     headers = {'Accept': 'application/json'}
     with open(artifact, 'rb') as f:
         artifacts = {'file': f}
+        print('Uploading artifact: ' + artifact)
         response = requests.post(artifacts_url, auth=(user, password),
                                  headers=headers, files=artifacts)
         if response.status_code == 500:
@@ -82,6 +85,7 @@ def publish_ds(provider, name, type, version, description, artifact,
                      'self': self_url,
                      'type': type_url,
                      'metadata': metadata_url}}
+    print('Creating Distribution Set: ' + name + ' [' + version + ']')
     response = requests.post(ds_url, data=json.dumps([ds]),
                              auth=(user, password), headers=headers)
 
@@ -90,8 +94,9 @@ def publish_ds(provider, name, type, version, description, artifact,
 
     response = response.json()
 
-    print('Got response from server when posting artifacts:')
-    pprint.pprint(response)
+    if verbose:
+        print('Got response from server when posting artifacts:')
+        pprint.pprint(response)
 
     if rollout_filter is None:
         return
@@ -105,12 +110,13 @@ def publish_ds(provider, name, type, version, description, artifact,
         print("Couldn't parse artifact post response", file=sys.stderr)
         return
 
-    start_rollout(version, ds_id, ro_url, rollout_filter)
+    start_rollout(version, ds_id, ro_url, rollout_filter, verbose)
 
 def read_sm(provider, name, type, version, description, artifact,
-            ds_url, ro_url, rollout_filter, id, self_url):
+            ds_url, ro_url, rollout_filter, id, self_url, verbose):
     # Read back detailed softwaremodule info
     headers = {'Accept': 'application/json'}
+    print('Getting URLs from Software Module: ' + name + ' [' + version + ']')
     response = requests.get(self_url,
                             auth=(user, password), headers=headers)
 
@@ -119,8 +125,9 @@ def read_sm(provider, name, type, version, description, artifact,
 
     response = response.json()
 
-    print('Got response from server when reading new software module:')
-    pprint.pprint(response)
+    if verbose:
+        print('Got response from server when reading new software module:')
+        pprint.pprint(response)
 
     if 'errorCode' in response:
         print('An error occurred; stopping.', file=sys.stderr)
@@ -136,11 +143,11 @@ def read_sm(provider, name, type, version, description, artifact,
 
     publish_ds(provider, name, type, version, description, artifact,
                ds_url, ro_url, rollout_filter, id, artifacts_url, self_url,
-               type_url, metadata_url)
+               type_url, metadata_url, verbose)
 
 
 def publish_sm(provider, name, type, version, description, artifact,
-               ds_url, sm_url, ro_url, rollout_filter):
+               ds_url, sm_url, ro_url, rollout_filter, verbose):
     # Publish Software Module
     headers = {'Content-Type': 'application/json',
                'Accept': 'application/json'}
@@ -150,6 +157,7 @@ def publish_sm(provider, name, type, version, description, artifact,
           'type': type,
           'description': description,
           'version': version}
+    print('Creating Software Module: ' + name + ' [' + version + ']')
     response = requests.post(sm_url, data=json.dumps([sm]),
                              auth=(user, password), headers=headers)
 
@@ -158,8 +166,9 @@ def publish_sm(provider, name, type, version, description, artifact,
 
     response = response.json()
 
-    print('Got response from server when posting software module:')
-    pprint.pprint(response)
+    if verbose:
+        print('Got response from server when posting software module:')
+        pprint.pprint(response)
 
     if 'errorCode' in response:
         print('An error occurred; stopping.', file=sys.stderr)
@@ -177,7 +186,7 @@ def publish_sm(provider, name, type, version, description, artifact,
         return
 
     read_sm(provider, name, type, version, description, artifact,
-            ds_url, ro_url, rollout_filter, id, self_url)
+            ds_url, ro_url, rollout_filter, id, self_url, verbose)
 
 
 def main():
@@ -204,10 +213,16 @@ def main():
                         help='Rollouts URL', default=RO_URL_DEFAULT)
     parser.add_argument('-rf', '--rollout-filter', help='Rollout name filter',
                         default=None)
+    parser.add_argument('-vv', '--verbose', help='Verbose output',
+                        default=False)
     args = parser.parse_args()
+
+    args.verbose = bool(args.verbose)
+
     publish_sm(args.provider, args.name, args.type, args.swversion,
                args.description, args.file, args.distribution_sets,
-               args.software_modules, args.rollouts, args.rollout_filter)
+               args.software_modules, args.rollouts, args.rollout_filter,
+               args.verbose)
 
 
 if __name__ == '__main__':
