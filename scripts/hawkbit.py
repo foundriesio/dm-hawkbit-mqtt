@@ -24,7 +24,7 @@ def start_rollout(ro_id, start_url):
     time.sleep(ROLLOUT_START_DELAY)
     response = requests.post(start_url, auth=(user, password))
 
-    if response.status_code == 500:
+    if response.status_code != 200:
         print('Error!')
         return -response.status_code
 
@@ -49,7 +49,7 @@ def create_rollout(version, ds_id, ro_url, rollout_filter, counter, verbose):
     response = requests.post(ro_url, data=json.dumps(ds),
                              auth=(user, password), headers=headers)
 
-    if response.status_code == 500:
+    if response.status_code != 201:
         return -response.status_code
 
     response = response.json()
@@ -77,7 +77,7 @@ def publish_ds(provider, name, type, version, description, artifact,
         print('Uploading artifact: ' + artifact)
         response = requests.post(artifacts_url, auth=(user, password),
                                  headers=headers, files=artifacts)
-        if response.status_code == 500:
+        if response.status_code != 201:
             return -response.status_code
 
     headers = {'Content-Type': 'application/json',
@@ -98,7 +98,7 @@ def publish_ds(provider, name, type, version, description, artifact,
     response = requests.post(ds_url, data=json.dumps([ds]),
                              auth=(user, password), headers=headers)
 
-    if response.status_code == 500:
+    if response.status_code != 201:
         return -response.status_code
 
     response = response.json()
@@ -131,7 +131,7 @@ def read_sm(provider, name, type, version, description, artifact,
     response = requests.get(self_url,
                             auth=(user, password), headers=headers)
 
-    if response.status_code == 500:
+    if response.status_code != 200:
          return -response.status_code
 
     response = response.json()
@@ -173,7 +173,7 @@ def publish_sm(provider, name, type, version, description, artifact,
     response = requests.post(sm_url, data=json.dumps([sm]),
                              auth=(user, password), headers=headers)
 
-    if response.status_code == 500:
+    if response.status_code != 201:
         return -response.status_code
 
     response = response.json()
@@ -208,7 +208,7 @@ def is_rollout_finished(ro_id, ro_url, verbose):
     response = requests.get(ro_url + '/' + str(ro_id),
                             auth=(user, password), headers=headers)
 
-    if response.status_code == 500:
+    if response.status_code != 200:
          return -response.status_code
 
     response = response.json()
@@ -233,7 +233,7 @@ def count_rollouts(name, version, ro_url):
     response = requests.get(ro_url,
                             auth=(user, password), headers=headers)
 
-    if response.status_code == 500:
+    if response.status_code != 200:
          return -response.status_code
 
     response = response.json()
