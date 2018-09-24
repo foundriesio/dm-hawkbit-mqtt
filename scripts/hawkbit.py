@@ -7,8 +7,6 @@ import json
 import sys
 import time
 
-__version__ = 1.0
-
 user = 'admin'
 password = 'admin'
 DS_URL_DEFAULT = 'http://localhost:8080/rest/v1/distributionsets'
@@ -249,8 +247,7 @@ def count_rollouts(name, version, ro_url):
 
 def main():
     description = 'Simple Hawkbit API Wrapper'
-    parser = argparse.ArgumentParser(version=__version__,
-                                     description=description)
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument('-p', '--provider', help='SW Module provider',
                         default='Foundries.io')
     parser.add_argument('-n', '--name', default='dm-hawkbit-mqtt',
