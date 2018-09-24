@@ -185,14 +185,16 @@ def main():
     parser = argparse.ArgumentParser(version=__version__,
                                      description=description)
     parser.add_argument('-p', '--provider', help='SW Module provider',
-                        required=True)
-    parser.add_argument('-n', '--name', help='SW Module name',
-                        required=True)
-    parser.add_argument('-t', '--type', help='SW Module type', required=True)
+                        default='Foundries.io')
+    parser.add_argument('-n', '--name', default='dm-hawkbit-mqtt',
+                        help='SW Module name, default: dm-hawkbit-mqtt')
+    parser.add_argument('-t', '--type', default='os',
+                        help='SW Module type, default: os')
     parser.add_argument('-sv', '--swversion', help='SW Module version',
                         required=True)
-    parser.add_argument('-d', '--description', help='SW Module description',
-                        required=True)
+    parser.add_argument('-d', '--description',
+                        default='Foundries.io dm-hawkbit-mqtt reference app',
+                        help='SW Module description')
     parser.add_argument('-f', '--file', help='Artifact to upload', required=True)
     parser.add_argument('-ds', '--distribution-sets',
                         help='Distribution Sets URL', default=DS_URL_DEFAULT)
