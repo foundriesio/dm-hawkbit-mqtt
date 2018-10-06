@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import argparse
+from datetime import datetime
 import pprint
 import requests
 import json
@@ -254,8 +255,9 @@ def main():
                         help='SW Module name, default: dm-hawkbit-mqtt')
     parser.add_argument('-t', '--type', default='os',
                         help='SW Module type, default: os')
-    parser.add_argument('-sv', '--swversion', help='SW Module version',
-                        required=True)
+    parser.add_argument('-sv', '--swversion',
+                        help='''SW Module version; if not given, a
+                        time and date stamp is used instead.''')
     parser.add_argument('-d', '--description',
                         default='Foundries.io dm-hawkbit-mqtt reference app',
                         help='SW Module description')
@@ -275,7 +277,13 @@ def main():
     args = parser.parse_args()
 
     args.verbose = bool(args.verbose)
-    existing_rollouts = count_rollouts(args.name, args.swversion,
+
+    swversion = args.swversion
+    if swversion is None:
+        swversion = str(datetime.now())
+        print('Using swversion:', swversion)
+
+    existing_rollouts = count_rollouts(args.name, swversion,
                                        args.rollouts)
     if existing_rollouts < 0:
         print("Count rollouts error: " + str(existing_rollouts))
@@ -285,7 +293,7 @@ def main():
     ro_id = 1
 
     while existing_rollouts < args.rollout_count and ro_id > 0:
-        ro_id = publish_sm(args.provider, args.name, args.type, args.swversion,
+        ro_id = publish_sm(args.provider, args.name, args.type, swversion,
                            args.description, args.file, args.distribution_sets,
                            args.software_modules, args.rollouts,
                            args.rollout_filter, existing_rollouts, args.verbose)
@@ -293,7 +301,7 @@ def main():
         if args.rollout_count > 1 and ro_id > 0:
             rollout_finished = 0
             print_counter = 0
-            print('Waiting for rollout: RO-' + args.swversion +
+            print('Waiting for rollout: RO-' + swversion +
                   '-' + str(existing_rollouts) + ' to finish.')
             while rollout_finished == 0:
                 time.sleep(5)
