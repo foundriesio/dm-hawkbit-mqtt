@@ -1,11 +1,12 @@
 /*
  * Copyright (c) 2017 Linaro Limited
+ * Copyright (c) 2018 Foundries.io
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef __FOTA_APP_WORK_QUEUE_H__
-#define __FOTA_APP_WORK_QUEUE_H__
+#ifndef FOTA_APP_WORK_QUEUE_H__
+#define FOTA_APP_WORK_QUEUE_H__
 
 /**
  * @file
@@ -75,4 +76,4 @@ static inline int app_wq_submit_delayed(struct k_delayed_work *work,
 	return k_delayed_work_submit_to_queue(app_work_q, work, delay_ms);
 }
 
-#endif /* __FOTA_APP_WORK_QUEUE_H__ */
+#endif /* FOTA_APP_WORK_QUEUE_H__ */

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017 Linaro Limited
+ * Copyright (c) 2018 Foundries.io
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,8 +10,8 @@
  * @brief Zephyr syslog backend hook that also prints timestamps.
  */
 
-#ifndef __FOTA_TSTAMP_LOG_H__
-#define __FOTA_TSTAMP_LOG_H__
+#ifndef FOTA_TSTAMP_LOG_H__
+#define FOTA_TSTAMP_LOG_H__
 
 #ifndef CONFIG_SYS_LOG_EXT_HOOK
 static inline void tstamp_hook_install(void)
@@ -27,4 +28,4 @@ static inline void tstamp_hook_install(void)
 void tstamp_hook_install(void);
 #endif	/* !defined(CONFIG_SYS_LOG_EXT_HOOK) */
 
-#endif	/* __FOTA_TSTAMP_LOG_H__ */
+#endif	/* FOTA_TSTAMP_LOG_H__ */

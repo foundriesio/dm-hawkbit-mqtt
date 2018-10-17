@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2017 Linaro Limited
  * Copyright (c) 2017 Open Source Foundries Limited
+ * Copyright (c) 2018 Foundries.io
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -24,8 +25,8 @@
  * in the board-level files in boards/.
  */
 
-#ifndef __FOTA_MQTT_TEMPERATURE_H__
-#define __FOTA_MQTT_TEMPERATURE_H__
+#ifndef FOTA_MQTT_TEMPERATURE_H__
+#define FOTA_MQTT_TEMPERATURE_H__
 
 /**
  * @brief Start the background MQTT thread
@@ -38,4 +39,4 @@
  */
 int mqtt_temperature_start(void);
 
-#endif	/* __FOTA_MQTT_TEMPERATURE_H__ */
+#endif	/* FOTA_MQTT_TEMPERATURE_H__ */

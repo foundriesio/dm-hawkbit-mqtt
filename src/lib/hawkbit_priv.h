@@ -1,11 +1,12 @@
 /*
  * Copyright (c) 2017 Linaro Limited
+ * Copyright (c) 2018 Foundries.io
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef __HAWKBIT_PRIV_H__
-#define __HAWKBIT_PRIV_H__
+#ifndef HAWKBIT_PRIV_H__
+#define HAWKBIT_PRIV_H__
 
 #include <zephyr/types.h>
 
@@ -206,4 +207,4 @@ struct hawkbit_dep_fbk {
 	struct hawkbit_status	 status;
 };
 
-#endif /* __HAWKBIT_PRIV_H__ */
+#endif /* HAWKBIT_PRIV_H__ */

@@ -1,11 +1,12 @@
 /*
  * Copyright (c) 2018 Open Source Foundries Limited
+ * Copyright (c) 2018 Foundries.io
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef __FOTA_BLINK_LED_H__
-#define __FOTA_BLINK_LED_H__
+#ifndef FOTA_BLINK_LED_H__
+#define FOTA_BLINK_LED_H__
 
 /**
  * @file
@@ -19,4 +20,4 @@
  */
 int blink_led_start(void);
 
-#endif /* __FOTA_BLINK_LED_H__ */
+#endif /* FOTA_BLINK_LED_H__ */
