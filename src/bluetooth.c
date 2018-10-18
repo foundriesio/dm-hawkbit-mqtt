@@ -31,11 +31,6 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include "product_id.h"
 
-#if defined(CONFIG_BOARD_96B_NITROGEN)
-#define BT_CONNECT_LED	BT_GPIO_PIN
-#define GPIO_DRV_BT	BT_GPIO_PORT
-#endif
-
 static void set_own_bt_addr(bt_addr_le_t *addr)
 {
 	int i;
@@ -66,12 +61,12 @@ static void set_own_bt_addr(bt_addr_le_t *addr)
 /* BT LE Connect/Disconnect callbacks */
 static void set_bluetooth_led(bool state)
 {
-#if defined(GPIO_DRV_BT) && defined(BT_CONNECT_LED)
+#if defined(BT_GPIO_PIN) && defined(BT_GPIO_CONTROLLER)
 	struct device *gpio;
 
-	gpio = device_get_binding(GPIO_DRV_BT);
-	gpio_pin_configure(gpio, BT_CONNECT_LED, GPIO_DIR_OUT);
-	gpio_pin_write(gpio, BT_CONNECT_LED, state);
+	gpio = device_get_binding(BT_GPIO_CONTROLLER);
+	gpio_pin_configure(gpio, BT_GPIO_PIN, GPIO_DIR_OUT);
+	gpio_pin_write(gpio, BT_GPIO_PIN, state);
 #endif
 }
 
