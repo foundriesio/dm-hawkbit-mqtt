@@ -1,13 +1,16 @@
 /*
  * Copyright (c) 2016-2017 Linaro Limited
- * Copyright 2018 Open Source Foundries Limited
+ * Copyright (c) 2018 Open Source Foundries Limited
+ * Copyright (c) 2018 Foundries.io
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define SYS_LOG_DOMAIN "fota/main"
-#define SYS_LOG_LEVEL SYS_LOG_LEVEL_DEBUG
-#include <logging/sys_log.h>
+#define LOG_MODULE_NAME fota_main
+#define LOG_LEVEL CONFIG_FOTA_LOG_LEVEL
+
+#include <logging/log.h>
+LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include <misc/stack.h>
 #include <gpio.h>
@@ -28,9 +31,9 @@ void main(void)
 	tstamp_hook_install();
 	app_wq_init();
 
-	SYS_LOG_INF("Open Source Foundries MQTT + hawkbit FOTA application");
-	SYS_LOG_INF("Device: %s, Serial: %x",
-		    product_id_get()->name, product_id_get()->number);
+	LOG_INF("Open Source Foundries MQTT + hawkbit FOTA application");
+	LOG_INF("Device: %s, Serial: %x",
+		product_id_get()->name, product_id_get()->number);
 
 	TC_START("Running Built in Self Test (BIST)");
 

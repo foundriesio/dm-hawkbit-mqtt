@@ -10,11 +10,11 @@
  * samples/net/mqtt_publisher
  */
 
-#include "mqtt_temperature.h"
+#define LOG_MODULE_NAME fota_mqtt_temp
+#define LOG_LEVEL CONFIG_FOTA_LOG_LEVEL
 
-#define SYS_LOG_DOMAIN "mqtt_temp"
-#define SYS_LOG_LEVEL CONFIG_SYS_LOG_FOTA_LEVEL
-#include <logging/sys_log.h>
+#include <logging/log.h>
+LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include <errno.h>
 #include <stdio.h>
@@ -36,6 +36,7 @@
 
 #include "product_id.h"
 #include "app_work_queue.h"
+#include "mqtt_temperature.h"
 
 #define MAX_FAILURES		5
 #define NUM_TEST_RESULTS	5
@@ -150,7 +151,7 @@ static void temp_mqtt_reboot_check(struct temp_mqtt_data *data, int result)
 {
 	if (result) {
 		if (++data->failures >= MAX_FAILURES) {
-			SYS_LOG_ERR("Too many MQTT errors, rebooting!");
+			LOG_ERR("Too many MQTT errors, rebooting!");
 			sys_reboot(0);
 		}
 	} else {
@@ -171,18 +172,17 @@ static int read_temperature(struct device *temp_dev,
 
 	ret = sensor_sample_fetch(temp_dev);
 	if (ret) {
-		SYS_LOG_ERR("%s: I/O error: %d", name, ret);
+		LOG_ERR("%s: I/O error: %d", name, ret);
 		return ret;
 	}
 
 	ret = sensor_channel_get(temp_dev, temp_channel, temp_val);
 	if (ret) {
-		SYS_LOG_ERR("%s: can't get data: %d", name, ret);
+		LOG_ERR("%s: can't get data: %d", name, ret);
 		return ret;
 	}
 
-	SYS_LOG_DBG("%s: read %d.%d C",
-		    name, temp_val->val1, temp_val->val2);
+	LOG_DBG("%s: read %d.%d C", name, temp_val->val1, temp_val->val2);
 	return 0;
 }
 
@@ -257,19 +257,19 @@ static inline int temp_mqtt_wait(struct temp_mqtt_data *data, s32_t timeout)
 
 static void temp_mqtt_connect_cb(struct mqtt_ctx *mqtt)
 {
-	SYS_LOG_DBG("connected");
+	LOG_DBG("connected");
 	k_sem_give(&mqtt_to_data(mqtt)->mqtt_wait_sem);
 }
 
 static void temp_mqtt_disconnect_cb(struct mqtt_ctx *mqtt)
 {
-	SYS_LOG_DBG("disconnected");
+	LOG_DBG("disconnected");
 	k_sem_give(&mqtt_to_data(mqtt)->mqtt_wait_sem);
 }
 
 static void temp_mqtt_malformed_cb(struct mqtt_ctx *mqtt, u16_t pkt_type)
 {
-	SYS_LOG_DBG("malformed data, type 0x%x", pkt_type);
+	LOG_DBG("malformed data, type 0x%x", pkt_type);
 }
 
 /*
@@ -297,7 +297,7 @@ static int temp_mqtt_connect(struct temp_mqtt_data *data)
 	for (i = 0; i < APP_CONNECT_TRIES; i++) {
 		ret = mqtt_tx_connect(mqtt, msg);
 		if (ret) {
-			SYS_LOG_ERR("mqtt_tx_connect: %d", ret);
+			LOG_ERR("mqtt_tx_connect: %d", ret);
 			continue;
 		}
 		ret = temp_mqtt_wait(data, CONNECT_WAIT_TIMEOUT);
@@ -308,7 +308,7 @@ static int temp_mqtt_connect(struct temp_mqtt_data *data)
 	}
 
 	mqtt_close(&data->mqtt);
-	SYS_LOG_ERR("timed out");
+	LOG_ERR("timed out");
 	return -ETIMEDOUT;
 }
 
@@ -328,7 +328,7 @@ static int temp_mqtt_publish(struct temp_mqtt_data *data)
 				   data->mqtt_message,
 				   sizeof(data->mqtt_message) - 1);
 	if (ret) {
-		SYS_LOG_ERR("json_obj_encode_buf: %d", ret);
+		LOG_ERR("json_obj_encode_buf: %d", ret);
 		return ret;
 	}
 
@@ -355,11 +355,11 @@ static int temp_mqtt_publish(struct temp_mqtt_data *data)
 	pub_msg->topic = data->mqtt_topic;
 	pub_msg->topic_len = strlen(pub_msg->topic);
 
-	SYS_LOG_DBG("topic: %s", data->pub_msg.topic);
-	SYS_LOG_DBG("message: %s", data->pub_msg.msg);
+	LOG_DBG("topic: %s", data->pub_msg.topic);
+	LOG_DBG("message: %s", data->pub_msg.msg);
 	ret = mqtt_tx_publish(&data->mqtt, &data->pub_msg);
 	if (ret) {
-		SYS_LOG_ERR("publish failed: %d", ret);
+		LOG_ERR("publish failed: %d", ret);
 	}
 
 	return ret;
@@ -376,7 +376,7 @@ static void temp_mqtt_try_to_publish(struct k_work *work)
 	if (!data->mqtt.connected) {
 		ret = temp_mqtt_connect(data);
 		if (ret) {
-			SYS_LOG_ERR("connection failed: %d", ret);
+			LOG_ERR("connection failed: %d", ret);
 			goto out;
 		}
 	}
@@ -474,9 +474,8 @@ static int init_sensor_sources(struct temp_mqtt_data *data)
 	data->amb_dev = device_get_binding(AMB_TEMP_DEV);
 	data->die_dev = device_get_binding(DIE_TEMP_DEV);
 
-	SYS_LOG_INF("%s ambient temperature sensor %s",
-		    data->amb_dev ? "Found" : "Did not find",
-		    AMB_TEMP_DEV);
+	LOG_INF("%s ambient temperature sensor %s",
+		data->amb_dev ? "Found" : "Did not find", AMB_TEMP_DEV);
 	if (data->amb_dev) {
 		memcpy(&data->sensor_json_descr[num_sources],
 		       &json_amb_temp_descr,
@@ -484,9 +483,8 @@ static int init_sensor_sources(struct temp_mqtt_data *data)
 		num_sources++;
 	}
 
-	SYS_LOG_INF("%s die temperature sensor %s",
-		    data->die_dev ? "Found" : "Did not find",
-		    DIE_TEMP_DEV);
+	LOG_INF("%s die temperature sensor %s",
+		data->die_dev ? "Found" : "Did not find", DIE_TEMP_DEV);
 	if (data->die_dev) {
 		memcpy(&data->sensor_json_descr[num_sources],
 		       &json_die_temp_descr,
@@ -495,7 +493,7 @@ static int init_sensor_sources(struct temp_mqtt_data *data)
 	}
 
 	if (num_sources == 0) {
-		SYS_LOG_ERR("No temperature devices found.");
+		LOG_ERR("No temperature devices found.");
 		return -ENODEV;
 	}
 
@@ -543,7 +541,7 @@ int mqtt_temperature_start(void)
 
 	ret = temp_mqtt_init_data(&temp_data);
 	if (ret) {
-		SYS_LOG_ERR("can't initialize: %d", ret);
+		LOG_ERR("can't initialize: %d", ret);
 		return ret;
 	}
 

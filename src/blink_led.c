@@ -1,12 +1,9 @@
 /*
  * Copyright (c) 2018 Open Source Foundries Limited
+ * Copyright (c) 2018 Foundries.io
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-
-#define SYS_LOG_DOMAIN "fota/led"
-#define SYS_LOG_LEVEL SYS_LOG_LEVEL_INFO
-#include <logging/sys_log.h>
 
 #include "blink_led.h"
 

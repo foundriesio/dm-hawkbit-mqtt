@@ -5,9 +5,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define SYS_LOG_DOMAIN "fota/hawkbit"
-#define SYS_LOG_LEVEL CONFIG_SYS_LOG_FOTA_LEVEL
-#include <logging/sys_log.h>
+#define LOG_MODULE_NAME fota_hawkbit
+#define LOG_LEVEL CONFIG_FOTA_LOG_LEVEL
+
+#include <logging/log.h>
+LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include <zephyr/types.h>
 #include <stddef.h>
@@ -299,16 +301,16 @@ static const char *str_or_null(const char *str)
 __unused
 static void hawkbit_dump_base(struct hawkbit_ctl_res *r, const char *comment)
 {
-	SYS_LOG_DBG("Base polling resource results %s:\n\t"
-		    "config.polling.sleep=%s\n\t"
-		    "_links.deploymentBase.href=%s\n\t"
-		    "_links.configData.href=%s\n\t"
-		    "_links.cancelAction.href=%s\n\t",
-		    comment,
-		    str_or_null(r->config.polling.sleep),
-		    str_or_null(r->_links.deploymentBase.href),
-		    str_or_null(r->_links.configData.href),
-		    str_or_null(r->_links.cancelAction.href));
+	LOG_DBG("Base polling resource results %s:\n\t"
+		"config.polling.sleep=%s\n\t"
+		"_links.deploymentBase.href=%s\n\t"
+		"_links.configData.href=%s\n\t"
+		"_links.cancelAction.href=%s\n\t",
+		comment,
+		str_or_null(r->config.polling.sleep),
+		str_or_null(r->_links.deploymentBase.href),
+		str_or_null(r->_links.configData.href),
+		str_or_null(r->_links.cancelAction.href));
 }
 
 __unused
@@ -319,37 +321,39 @@ static void hawkbit_dump_deployment(struct hawkbit_dep_res *d,
 	struct hawkbit_dep_res_arts *a = &c->artifacts[0];
 	struct hawkbit_dep_res_links *l = &a->_links;
 
-	SYS_LOG_DBG("Deployment base results %s:\n\t"
-		    "id=%s\n\t"
-		    "deployment =\n\t\t"
-		    "download=%s\n\t\t"
-		    "update=%s\n\t\t"
-		    "chunks[0].part=%s\n\t\t"
-		    "         .name=%s\n\t\t"
-		    "         .version=%s\n\t\t"
-		    "         .artifacts[0].filename=%s\n\t\t"
-		    "                      .size=%d\n\t\t"
-		    "                      .hashes = sha1=%s,md5=%s\n\t\t"
-		    "                      ._links =\n\t\t\t"
-		    "                                 download=%s\n\t\t\t"
-		    "                                 md5sum=%s\n\t\t\t"
-		    "                                 download_http=%s\n\t\t\t"
-		    "                                 md5sum_http=%s\n\t\t\t",
-		    comment,
-		    str_or_null(d->id),
-		    str_or_null(d->deployment.download),
-		    str_or_null(d->deployment.update),
-		    str_or_null(c->part),
-		    str_or_null(c->name),
-		    str_or_null(c->version),
-		    str_or_null(a->filename),
-		    a->size,
-		    str_or_null(a->hashes.sha1),
-		    str_or_null(a->hashes.md5),
-		    str_or_null(l->download.href),
-		    str_or_null(l->md5sum.href),
-		    str_or_null(l->download_http.href),
-		    str_or_null(l->md5sum_http.href));
+	/* Max # of params for a LOG_* statement is 9.  Breaking up */
+	LOG_DBG("Deployment base results %s:\n\t"
+		"id=%s\n\t"
+		"deployment =\n\t\t"
+		"download=%s\n\t\t"
+		"update=%s\n\t\t"
+		"chunks[0].part=%s\n\t\t"
+		"         .name=%s\n\t\t"
+		"         .version=%s\n\t\t"
+		"         .artifacts[0].filename=%s\n\t\t",
+		comment,
+		str_or_null(d->id),
+		str_or_null(d->deployment.download),
+		str_or_null(d->deployment.update),
+		str_or_null(c->part),
+		str_or_null(c->name),
+		str_or_null(c->version),
+		str_or_null(a->filename));
+
+	LOG_DBG("                      .size=%d\n\t\t"
+		"                      .hashes = sha1=%s,md5=%s\n\t\t"
+		"                      ._links =\n\t\t\t"
+		"                                 download=%s\n\t\t\t"
+		"                                 md5sum=%s\n\t\t\t"
+		"                                 download_http=%s\n\t\t\t"
+		"                                 md5sum_http=%s\n\t\t\t",
+		a->size,
+		str_or_null(a->hashes.sha1),
+		str_or_null(a->hashes.md5),
+		str_or_null(l->download.href),
+		str_or_null(l->md5sum.href),
+		str_or_null(l->download_http.href),
+		str_or_null(l->md5sum_http.href));
 }
 
 /* Utils */
@@ -393,7 +397,7 @@ static const char *hawkbit_status_finished(enum hawkbit_status_fini f)
 	case HAWKBIT_STATUS_FINISHED_NONE:
 		return "none";
 	default:
-		SYS_LOG_ERR("%d is invalid", (int)f);
+		LOG_ERR("%d is invalid", (int)f);
 		return NULL;
 	}
 }
@@ -414,7 +418,7 @@ static const char *hawkbit_status_execution(enum hawkbit_status_exec e)
 	case HAWKBIT_STATUS_EXEC_RESUMED:
 		return "resumed";
 	default:
-		SYS_LOG_ERR("%d is invalid", (int)e);
+		LOG_ERR("%d is invalid", (int)e);
 		return NULL;
 	}
 }
@@ -471,17 +475,17 @@ static void log_img_ver(void)
 	ret = boot_read_bank_header(FLASH_AREA_IMAGE_0_OFFSET,
 				    &header, sizeof(header));
 	if (ret) {
-		SYS_LOG_ERR("can't read header: %d", ret);
+		LOG_ERR("can't read header: %d", ret);
 		return;
 	} else if (header.mcuboot_version != 1) {
-		SYS_LOG_ERR("unsupported MCUboot version %u",
-			    header.mcuboot_version);
+		LOG_ERR("unsupported MCUboot version %u",
+			header.mcuboot_version);
 		return;
 	}
 
 	ver = &header.h.v1.sem_ver;
-	SYS_LOG_INF("image version %u.%u.%u build #%u",
-		    ver->major, ver->minor, ver->revision, ver->build_num);
+	LOG_INF("image version %u.%u.%u build #%u",
+		ver->major, ver->minor, ver->revision, ver->build_num);
 }
 
 static int hawkbit_init_flash(void)
@@ -495,7 +499,7 @@ static int hawkbit_init_flash(void)
 	 */
 	flash_dev = device_get_binding(FLASH_DEV_NAME);
 	if (!flash_dev) {
-		SYS_LOG_ERR("missing flash device %s", FLASH_DEV_NAME);
+		LOG_ERR("missing flash device %s", FLASH_DEV_NAME);
 		return -ENODEV;
 	}
 
@@ -503,25 +507,25 @@ static int hawkbit_init_flash(void)
 
 	/* Update boot status and acid */
 	hawkbit_device_acid_read(&init_acid);
-	SYS_LOG_INF("ACID: current %d, update %d",
+	LOG_INF("ACID: current %d, update %d",
 		    init_acid.current, init_acid.update);
 	image_ok = boot_is_img_confirmed();
-	SYS_LOG_INF("Image is%s confirmed OK", image_ok ? "" : " not");
+	LOG_INF("Image is%s confirmed OK", image_ok ? "" : " not");
 	if (!image_ok) {
 		ret = boot_write_img_confirmed();
 		if (ret) {
-			SYS_LOG_ERR("Couldn't confirm this image: %d", ret);
+			LOG_ERR("Couldn't confirm this image: %d", ret);
 			return ret;
 		}
-		SYS_LOG_INF("Marked image as OK");
+		LOG_INF("Marked image as OK");
 		ret = boot_erase_img_bank(FLASH_AREA_IMAGE_1_OFFSET);
 		if (ret) {
-			SYS_LOG_ERR("Flash bank erase at offset %x: error %d",
-				    FLASH_AREA_IMAGE_1_OFFSET, ret);
+			LOG_ERR("Flash bank erase at offset %x: error %d",
+				FLASH_AREA_IMAGE_1_OFFSET, ret);
 			return ret;
 		} else {
-			SYS_LOG_DBG("Erased flash bank at offset %x",
-				    FLASH_AREA_IMAGE_1_OFFSET);
+			LOG_DBG("Erased flash bank at offset %x",
+				FLASH_AREA_IMAGE_1_OFFSET);
 		}
 		if (init_acid.update != -1) {
 			ret = hawkbit_device_acid_update(HAWKBIT_ACID_CURRENT,
@@ -529,10 +533,10 @@ static int hawkbit_init_flash(void)
 		}
 		if (!ret) {
 			hawkbit_device_acid_read(&init_acid);
-			SYS_LOG_INF("ACID updated, current %d, update %d",
-				    init_acid.current, init_acid.update);
+			LOG_INF("ACID updated, current %d, update %d",
+				init_acid.current, init_acid.update);
 		} else {
-			SYS_LOG_ERR("Failed to update ACID: %d", ret);
+			LOG_ERR("Failed to update ACID: %d", ret);
 		}
 	}
 	return ret;
@@ -552,14 +556,14 @@ static void install_update_cb(struct http_ctx *ctx,
 
 	/* HTTP error */
 	if (ctx->http.parser.status_code != 200) {
-		SYS_LOG_ERR("HTTP error: %d!", ctx->http.parser.status_code);
+		LOG_ERR("HTTP error: %d!", ctx->http.parser.status_code);
 		goto error;
 	}
 
 	/* header hasn't been read yet */
 	if (hbc->dl.http_content_size == 0) {
 		if (ctx->http.rsp.body_found == 0) {
-			SYS_LOG_ERR("Callback called w/o HTTP header found!");
+			LOG_ERR("Callback called w/o HTTP header found!");
 			goto error;
 		}
 
@@ -580,7 +584,7 @@ static void install_update_cb(struct http_ctx *ctx,
 				       body_data, body_len,
 				       final_data == HTTP_DATA_FINAL);
 	if (ret < 0) {
-		SYS_LOG_ERR("Flash write error: %d", ret);
+		LOG_ERR("Flash write error: %d", ret);
 		goto error;
 	}
 	hbc->dl.downloaded_size = flash_img_bytes_written(&dfu_ctx);
@@ -589,7 +593,7 @@ static void install_update_cb(struct http_ctx *ctx,
 		     hbc->dl.http_content_size;
 	if (downloaded > hbc->dl.download_progress) {
 		hbc->dl.download_progress = downloaded;
-		SYS_LOG_DBG("%d%%", hbc->dl.download_progress);
+		LOG_DBG("%d%%", hbc->dl.download_progress);
 	}
 
 	if (final_data == HTTP_DATA_FINAL) {
@@ -621,12 +625,12 @@ static int hawkbit_install_update(struct hawkbit_context *hbc,
 			  FLASH_BANK_SIZE);
 	flash_write_protection_set(flash_dev, true);
 	if (ret != 0) {
-		SYS_LOG_ERR("Failed to erase flash at offset %x, size %d",
-			    FLASH_AREA_IMAGE_1_OFFSET, FLASH_BANK_SIZE);
+		LOG_ERR("Failed to erase flash at offset %x, size %d",
+			FLASH_AREA_IMAGE_1_OFFSET, FLASH_BANK_SIZE);
 		return -EIO;
 	}
 
-	SYS_LOG_INF("Starting the download and flash process");
+	LOG_INF("Starting the download and flash process");
 
 	/* Receive is special for download, since it writes to flash */
 	memset(hbc->tcp_buffer, 0, hbc->tcp_buffer_size);
@@ -640,7 +644,7 @@ static int hawkbit_install_update(struct hawkbit_context *hbc,
 			       HAWKBIT_SERVER_ADDR, HAWKBIT_PORT,
 			       NULL, HAWKBIT_RX_TIMEOUT);
 	if (ret < 0) {
-		SYS_LOG_ERR("Failed to init http ctx, err %d", ret);
+		LOG_ERR("Failed to init http ctx, err %d", ret);
 		return ret;
 	}
 
@@ -657,7 +661,7 @@ static int hawkbit_install_update(struct hawkbit_context *hbc,
 				       hbc, K_NO_WAIT);
 	/* http_client returns EINPROGRESS for get_req w/ K_NO_WAIT */
 	if (ret < 0 && ret != -EINPROGRESS) {
-		SYS_LOG_ERR("Failed to send request, err %d", ret);
+		LOG_ERR("Failed to send request, err %d", ret);
 		return ret;
 	}
 
@@ -675,26 +679,26 @@ static int hawkbit_install_update(struct hawkbit_context *hbc,
 	http_release(&hbc->http_ctx);
 
 	if (dl->download_status < 0) {
-		SYS_LOG_ERR("Unable to finish the download process %d",
-			    dl->download_status);
+		LOG_ERR("Unable to finish the download process %d",
+			dl->download_status);
 		return -1;
 	}
 
 	if (dl->downloaded_size != dl->http_content_size) {
-		SYS_LOG_ERR("Download: downloaded image size mismatch, "
-			    "downloaded %zu, expecting %zu",
-			    dl->downloaded_size, dl->http_content_size);
+		LOG_ERR("Download: downloaded image size mismatch, "
+			"downloaded %zu, expecting %zu",
+			dl->downloaded_size, dl->http_content_size);
 		return -1;
 	}
 
 	if (dl->downloaded_size != file_size) {
-		SYS_LOG_ERR("Download: downloaded image size mismatch, "
-			    "downloaded %zu, expecting from JSON %zu",
-			    dl->downloaded_size, file_size);
+		LOG_ERR("Download: downloaded image size mismatch, "
+			"downloaded %zu, expecting from JSON %zu",
+			dl->downloaded_size, file_size);
 		return -1;
 	}
 
-	SYS_LOG_INF("Download: downloaded bytes %zu", dl->downloaded_size);
+	LOG_INF("Download: downloaded bytes %zu", dl->downloaded_size);
 	return 0;
 }
 
@@ -703,9 +707,9 @@ static int hawkbit_query(struct hawkbit_context *hbc,
 {
 	int ret = 0;
 
-	SYS_LOG_DBG("[%s] HOST:%s URL:%s",
-		    http_method_str(hbc->http_req.method),
-		    hbc->http_req.host, hbc->http_req.url);
+	LOG_DBG("[%s] HOST:%s URL:%s",
+		http_method_str(hbc->http_req.method),
+		hbc->http_req.host, hbc->http_req.url);
 
 	memset(hbc->tcp_buffer, 0, hbc->tcp_buffer_size);
 
@@ -713,7 +717,7 @@ static int hawkbit_query(struct hawkbit_context *hbc,
 			       HAWKBIT_SERVER_ADDR, HAWKBIT_PORT,
 			       NULL, HAWKBIT_RX_TIMEOUT);
 	if (ret < 0) {
-		SYS_LOG_ERR("Failed to init http ctx, err %d", ret);
+		LOG_ERR("Failed to init http ctx, err %d", ret);
 		return ret;
 	}
 
@@ -725,20 +729,20 @@ static int hawkbit_query(struct hawkbit_context *hbc,
 				   hbc->tcp_buffer, hbc->tcp_buffer_size,
 				   NULL, HAWKBIT_RX_TIMEOUT);
 	if (ret < 0) {
-		SYS_LOG_ERR("Failed to send buffer, err %d", ret);
+		LOG_ERR("Failed to send buffer, err %d", ret);
 		goto cleanup;
 	}
 
 	if (hbc->http_ctx.http.rsp.data_len == 0) {
-		SYS_LOG_ERR("No received data (rsp.data_len: %zu)",
-			    hbc->http_ctx.http.rsp.data_len);
+		LOG_ERR("No received data (rsp.data_len: %zu)",
+			hbc->http_ctx.http.rsp.data_len);
 		ret = -EIO;
 		goto cleanup;
 	}
 
 	if (hbc->http_ctx.http.parser.status_code != 200) {
-		SYS_LOG_ERR("Invalid HTTP status code [%d]",
-			    hbc->http_ctx.http.parser.status_code);
+		LOG_ERR("Invalid HTTP status code [%d]",
+			hbc->http_ctx.http.parser.status_code);
 		ret = -1;
 		goto cleanup;
 	}
@@ -753,10 +757,10 @@ static int hawkbit_query(struct hawkbit_context *hbc,
 		 * us from using content from a previous package.
 		 */
 		json->data[json->len] = '\0';
-		SYS_LOG_DBG("JSON DATA:\n%s", json->data);
+		LOG_DBG("JSON DATA:\n%s", json->data);
 	}
 
-	SYS_LOG_DBG("Hawkbit query completed");
+	LOG_DBG("Hawkbit query completed");
 
 cleanup:
 	/* clean up context */
@@ -774,11 +778,11 @@ static void hawkbit_update_sleep(struct hawkbit_ctl_res *hawkbit_res)
 	int len;
 
 	if (strlen(sleep) != HAWKBIT_SLEEP_LENGTH) {
-		SYS_LOG_ERR("invalid poll sleep: %s", sleep);
+		LOG_ERR("invalid poll sleep: %s", sleep);
 	} else {
 		len = hawkbit_time2sec(sleep);
 		if (len > 0 && poll_sleep != K_SECONDS(len)) {
-			SYS_LOG_INF("New poll sleep %d seconds", len);
+			LOG_INF("New poll sleep %d seconds", len);
 			poll_sleep = K_SECONDS(len);
 		}
 	}
@@ -791,7 +795,7 @@ static int hawkbit_report_config_data(struct hawkbit_context *hbc)
 	struct hawkbit_cfg cfg;
 	int ret;
 
-	SYS_LOG_INF("Reporting target config data to Hawkbit");
+	LOG_INF("Reporting target config data to Hawkbit");
 
 	/* Build URL */
 	snprintk(hbc->url_buffer, hbc->url_buffer_size,
@@ -813,10 +817,10 @@ static int hawkbit_report_config_data(struct hawkbit_context *hbc)
 				  &cfg, hbc->status_buffer,
 				  hbc->status_buffer_size - 1);
 	if (ret) {
-		SYS_LOG_ERR("can't encode response: %d", ret);
+		LOG_ERR("can't encode response: %d", ret);
 		return ret;
 	}
-	SYS_LOG_DBG("JSON response: %s", hbc->status_buffer);
+	LOG_DBG("JSON response: %s", hbc->status_buffer);
 
 	memset(&hbc->http_req, 0, sizeof(hbc->http_req));
 	hbc->http_req.method = HTTP_PUT;
@@ -829,7 +833,7 @@ static int hawkbit_report_config_data(struct hawkbit_context *hbc)
 	hbc->http_req.payload_size = strlen(hbc->status_buffer);
 
 	if (hawkbit_query(hbc, NULL)) {
-		SYS_LOG_ERR("Error when reporting config data to Hawkbit");
+		LOG_ERR("Error when reporting config data to Hawkbit");
 		return -1;
 	}
 
@@ -857,13 +861,13 @@ static int hawkbit_find_deployment_base(struct hawkbit_ctl_res *res,
 	helper = strstr(href, "deploymentBase/");
 	if (!helper) {
 		/* A badly formatted deployment base is a server error. */
-		SYS_LOG_ERR("missing deploymentBase/ in href %s", href);
+		LOG_ERR("missing deploymentBase/ in href %s", href);
 		return -EINVAL;
 	}
 	len = strlen(helper);
 	if (len > deployment_base_size - 1) {
 		/* Lack of memory is an application error. */
-		SYS_LOG_ERR("deploymentBase %s is too big (len %zu, max %zu)",
+		LOG_ERR("deploymentBase %s is too big (len %zu, max %zu)",
 			    helper, len, deployment_base_size - 1);
 		return -ENOMEM;
 	}
@@ -890,30 +894,30 @@ static int hawkbit_parse_deployment(struct hawkbit_dep_res *res,
 
 	acid = strtol(res->id, NULL, 10);
 	if (acid < 0) {
-		SYS_LOG_ERR("negative action ID %d", acid);
+		LOG_ERR("negative action ID %d", acid);
 		return -EINVAL;
 	}
 	*json_acid = acid;
 	num_chunks = res->deployment.num_chunks;
 	if (num_chunks != 1) {
-		SYS_LOG_ERR("expecting one chunk (got %d)", num_chunks);
+		LOG_ERR("expecting one chunk (got %d)", num_chunks);
 		return -ENOSPC;
 	}
 	chunk = &res->deployment.chunks[0];
 	if (strcmp("os", chunk->part)) {
-		SYS_LOG_ERR("only part 'os' is supported; got %s", chunk->part);
+		LOG_ERR("only part 'os' is supported; got %s", chunk->part);
 		return -EINVAL;
 	}
 	num_artifacts = chunk->num_artifacts;
 	if (num_artifacts != 1) {
-		SYS_LOG_ERR("expecting one artifact (got %d)", num_artifacts);
+		LOG_ERR("expecting one artifact (got %d)", num_artifacts);
 		return -EINVAL;
 	}
 	artifact = &chunk->artifacts[0];
 	size = artifact->size;
 	if (size > FLASH_BANK_SIZE) {
-		SYS_LOG_ERR("artifact file size too big (got %d, max is %d)",
-			    size, FLASH_BANK_SIZE);
+		LOG_ERR("artifact file size too big (got %d, max is %d)",
+			size, FLASH_BANK_SIZE);
 		return -ENOSPC;
 	}
 	/*
@@ -922,21 +926,21 @@ static int hawkbit_parse_deployment(struct hawkbit_dep_res *res,
 	 */
 	href = artifact->_links.download_http.href;
 	if (!href) {
-		SYS_LOG_ERR("missing expected download-http href");
+		LOG_ERR("missing expected download-http href");
 		return -EINVAL;
 	}
 	helper = strstr(href, "/DEFAULT/controller/v1");
 	if (!helper) {
-		SYS_LOG_ERR("unexpected download-http href format: %s", helper);
+		LOG_ERR("unexpected download-http href format: %s", helper);
 		return -EINVAL;
 	}
 	len = strlen(helper);
 	if (len == 0) {
-		SYS_LOG_ERR("empty download-http");
+		LOG_ERR("empty download-http");
 		return -EINVAL;
 	} else if (len > download_http_size - 1) {
-		SYS_LOG_ERR("download-http %s is too big (len: %zu, max: %zu)",
-			    helper, len, download_http_size - 1);
+		LOG_ERR("download-http %s is too big (len: %zu, max: %zu)",
+			helper, len, download_http_size - 1);
 		return -ENOMEM;
 	}
 	/* Success. */
@@ -961,8 +965,8 @@ static int hawkbit_report_dep_fbk(struct hawkbit_context *hbc,
 		return -EINVAL;
 	}
 
-	SYS_LOG_INF("Reporting deployment feedback %s (%s) for action %d",
-		    fini, exec, action_id);
+	LOG_INF("Reporting deployment feedback %s (%s) for action %d",
+		fini, exec, action_id);
 
 	/* Build URL */
 	snprintk(hbc->url_buffer, hbc->url_buffer_size,
@@ -981,10 +985,10 @@ static int hawkbit_report_dep_fbk(struct hawkbit_context *hbc,
 				  &feedback, hbc->status_buffer,
 				  hbc->status_buffer_size - 1);
 	if (ret) {
-		SYS_LOG_ERR("Can't encode response: %d", ret);
+		LOG_ERR("Can't encode response: %d", ret);
 		return ret;
 	}
-	SYS_LOG_DBG("JSON response: %s", hbc->status_buffer);
+	LOG_DBG("JSON response: %s", hbc->status_buffer);
 
 	memset(&hbc->http_req, 0, sizeof(hbc->http_req));
 	hbc->http_req.method = HTTP_POST;
@@ -998,7 +1002,7 @@ static int hawkbit_report_dep_fbk(struct hawkbit_context *hbc,
 
 	ret = hawkbit_query(hbc, NULL);
 	if (ret) {
-		SYS_LOG_ERR("Failed to report deployment feedback");
+		LOG_ERR("Failed to report deployment feedback");
 	}
 
 	return ret;
@@ -1031,7 +1035,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 	/*
 	 * Query the hawkBit base polling resource.
 	 */
-	SYS_LOG_DBG("Polling target data from Hawkbit");
+	LOG_DBG("Polling target data from Hawkbit");
 
 	/* Build URL */
 	snprintk(hbc->url_buffer, hbc->url_buffer_size, "%s/%s-%x",
@@ -1046,7 +1050,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 
 	ret = hawkbit_query(hbc, &json);
 	if (ret < 0) {
-		SYS_LOG_ERR("Error when polling from Hawkbit");
+		LOG_ERR("Error when polling from Hawkbit");
 		return ret;
 	}
 
@@ -1059,7 +1063,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 			     ARRAY_SIZE(json_ctl_res_descr),
 			     &hawkbit_results.base);
 	if (ret < 0) {
-		SYS_LOG_ERR("JSON parse error %d polling base resource", ret);
+		LOG_ERR("JSON parse error %d polling base resource", ret);
 		return ret;
 	}
 
@@ -1073,8 +1077,8 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 	}
 	if (hawkbit_results.base._links.cancelAction.href) {
 		/* TODO: implement cancelAction logic. */
-		SYS_LOG_WRN("Ignoring cancelAction (href %s)",
-			    hawkbit_results.base._links.cancelAction.href);
+		LOG_WRN("Ignoring cancelAction (href %s)",
+			hawkbit_results.base._links.cancelAction.href);
 	}
 	ret = hawkbit_find_deployment_base(&hawkbit_results.base,
 					   deployment_base,
@@ -1094,7 +1098,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 	 * else to do.
 	 */
 	if (strlen(deployment_base) == 0) {
-		SYS_LOG_DBG("No deployment base found, no actions to take");
+		LOG_DBG("No deployment base found, no actions to take");
 		return 0;
 	}
 
@@ -1113,7 +1117,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 	hbc->http_req.header_fields = HTTP_HEADER_CONNECTION_CLOSE_CRLF;
 
 	if (hawkbit_query(hbc, &json) < 0) {
-		SYS_LOG_ERR("Error when querying from Hawkbit");
+		LOG_ERR("Error when querying from Hawkbit");
 		return -1;
 	}
 
@@ -1126,12 +1130,12 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 			     ARRAY_SIZE(json_dep_res_descr),
 			     &hawkbit_results.dep);
 	if (ret < 0) {
-		SYS_LOG_ERR("deploymentBase JSON parse error %d", ret);
+		LOG_ERR("deploymentBase JSON parse error %d", ret);
 		goto report_error;
 	} else if (ret != (1 << ARRAY_SIZE(json_dep_res_descr)) - 1) {
-		SYS_LOG_ERR("deploymentBase JSON mismatch"
-			    " (expected 0x%x, got 0x%x)",
-			    (1 << ARRAY_SIZE(json_dep_res_descr)) - 1, ret);
+		LOG_ERR("deploymentBase JSON mismatch"
+			" (expected 0x%x, got 0x%x)",
+			(1 << ARRAY_SIZE(json_dep_res_descr)) - 1, ret);
 		ret = -EINVAL;
 		goto report_error;
 	}
@@ -1148,12 +1152,12 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 	}
 
 	/* TODO: handle download/update. */
-	SYS_LOG_DBG("action ID: %d", json_acid);
-	SYS_LOG_DBG("deployment: download %s, update %s (ignored)",
-		    hawkbit_results.dep.deployment.download,
-		    hawkbit_results.dep.deployment.update);
-	SYS_LOG_DBG("artifact address: %s", download_http);
-	SYS_LOG_DBG("artifact file size: %d", file_size);
+	LOG_DBG("action ID: %d", json_acid);
+	LOG_DBG("deployment: download %s, update %s (ignored)",
+		hawkbit_results.dep.deployment.download,
+		hawkbit_results.dep.deployment.update);
+	LOG_DBG("artifact address: %s", download_http);
+	LOG_DBG("artifact file size: %d", file_size);
 
 	hawkbit_device_acid_read(&device_acid);
 	if (device_acid.current == json_acid) {
@@ -1168,15 +1172,14 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 	 * Check for errors.
 	 */
 	if (device_acid.update == (u32_t)json_acid) {
-		SYS_LOG_ERR("Preventing repeated attempt to install %d",
-			    json_acid);
+		LOG_ERR("Preventing repeated attempt to install %d", json_acid);
 		ret = -EALREADY;
 		goto report_error;
 	}
 
 	/* Here we should have everything we need to apply the action */
-	SYS_LOG_INF("Valid action ID %d found, proceeding with the update",
-					json_acid);
+	LOG_INF("Valid action ID %d found, proceeding with the update",
+		json_acid);
 	ret = hawkbit_report_dep_fbk(hbc, json_acid,
 				     HAWKBIT_STATUS_FINISHED_SUCCESS,
 				     HAWKBIT_STATUS_EXEC_PROCEEDING);
@@ -1185,20 +1188,20 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 	}
 	ret = hawkbit_install_update(hbc, download_http, file_size);
 	if (ret != 0) {
-		SYS_LOG_ERR("Failed to install the update for action ID %d",
-			    json_acid);
+		LOG_ERR("Failed to install the update for action ID %d",
+			json_acid);
 		goto report_error;
 	}
 
-	SYS_LOG_INF("Triggering OTA update.");
+	LOG_INF("Triggering OTA update.");
 	boot_request_upgrade(false);
 	ret = hawkbit_device_acid_update(HAWKBIT_ACID_UPDATE, json_acid);
 	if (ret != 0) {
-		SYS_LOG_ERR("Failed to update ACID: %d", ret);
+		LOG_ERR("Failed to update ACID: %d", ret);
 		goto report_error;
 	}
-	SYS_LOG_INF("Image id %d flashed successfuly, rebooting now",
-					json_acid);
+	LOG_INF("Image id %d flashed successfuly, rebooting now",
+		json_acid);
 
 	/* Reboot and let the bootloader take care of the swap process */
 	sys_reboot(0);
@@ -1227,7 +1230,7 @@ static void hawkbit_work_fn(struct k_work *work)
 		hbc->failures = 0;
 	}
 	if (hbc->failures == HAWKBIT_MAX_SERVER_FAIL) {
-		SYS_LOG_ERR("Too many unsuccessful poll attempts, rebooting!");
+		LOG_ERR("Too many unsuccessful poll attempts, rebooting!");
 		sys_reboot(0);
 	}
 
@@ -1237,7 +1240,7 @@ static void hawkbit_work_fn(struct k_work *work)
 static void event_iface_up(struct net_mgmt_event_callback *cb,
 			   u32_t mgmt_event, struct net_if *iface)
 {
-	SYS_LOG_INF("Submitting FOTA Service work");
+	LOG_INF("Submitting FOTA Service work");
 	k_delayed_work_submit_to_queue(hb_context.work_q, &hb_context.work,
 				       poll_sleep);
 }
@@ -1250,8 +1253,8 @@ int hawkbit_start(struct k_work_q *work_q)
 
 	ret = hawkbit_init_flash();
 	if (ret) {
-		SYS_LOG_ERR("Hawkbit Client initialization generated "
-			    "an error: %d", ret);
+		LOG_ERR("Hawkbit Client initialization generated an error: %d",
+			ret);
 		return ret;
 	}
 
