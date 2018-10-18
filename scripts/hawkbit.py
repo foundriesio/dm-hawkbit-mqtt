@@ -10,9 +10,9 @@ import time
 
 user = 'admin'
 password = 'admin'
-DS_URL_DEFAULT = 'http://localhost:8080/rest/v1/distributionsets'
-SM_URL_DEFAULT = 'http://localhost:8080/rest/v1/softwaremodules'
-RO_URL_DEFAULT = 'http://localhost:8080/rest/v1/rollouts'
+DS_URL_DEFAULT = '/rest/v1/distributionsets'
+SM_URL_DEFAULT = '/rest/v1/softwaremodules'
+RO_URL_DEFAULT = '/rest/v1/rollouts'
 
 ROLLOUT_START_DELAY = 5
 
@@ -272,19 +272,26 @@ def main():
                         default=None)
     parser.add_argument('-rc', '--rollout-count', help='Rollout count',
                         type=int, default=1)
+    parser.add_argument('-host', '--hostname', help='HawkBit server hostname or ip',
+			default='localhost')
+    parser.add_argument('-port', '--port', help='HawkBit server API port',
+			type=int, default='8080')
     parser.add_argument('-vv', '--verbose', help='Verbose output',
                         default=False)
     args = parser.parse_args()
 
     args.verbose = bool(args.verbose)
 
+    ds_url = "http://" + args.hostname + ":" + str(args.port) + args.distribution_sets
+    sm_url = "http://" + args.hostname + ":" + str(args.port) + args.software_modules
+    ro_url = "http://" + args.hostname + ":" + str(args.port) + args.rollouts
+
     swversion = args.swversion
     if swversion is None:
         swversion = str(datetime.now())
         print('Using swversion:', swversion)
 
-    existing_rollouts = count_rollouts(args.name, swversion,
-                                       args.rollouts)
+    existing_rollouts = count_rollouts(args.name, swversion, ro_url)
     if existing_rollouts < 0:
         print("Count rollouts error: " + str(existing_rollouts))
         return
@@ -294,8 +301,7 @@ def main():
 
     while existing_rollouts < args.rollout_count and ro_id > 0:
         ro_id = publish_sm(args.provider, args.name, args.type, swversion,
-                           args.description, args.file, args.distribution_sets,
-                           args.software_modules, args.rollouts,
+                           args.description, args.file, ds_url, sm_url, ro_url,
                            args.rollout_filter, existing_rollouts, args.verbose)
 
         if args.rollout_count > 1 and ro_id > 0:
@@ -311,7 +317,7 @@ def main():
                 if print_counter == 40:
                     print('')
                     print_counter = 0
-                rollout_finished = is_rollout_finished(ro_id, args.rollouts,
+                rollout_finished = is_rollout_finished(ro_id, ro_url,
                                                        args.verbose)
                 if rollout_finished < 0:
                     ro_id = rollout_finished
