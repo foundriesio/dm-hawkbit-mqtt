@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2016-2017 Linaro Limited
  * Copyright (c) 2018 Open Source Foundries Limited
+ * Copyright (c) 2018 Foundries.io
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -36,6 +37,9 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include "hawkbit.h"
 #include "hawkbit_priv.h"
 #include "product_id.h"
+#ifdef CONFIG_NET_L2_BT
+#include "../bluetooth.h"
+#endif
 
 /*
  * Uncomment for extra debug printing.
@@ -1205,6 +1209,9 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 		json_acid);
 
 	/* Reboot and let the bootloader take care of the swap process */
+#ifdef CONFIG_NET_L2_BT
+	bt_network_disable();
+#endif
 	LOG_PANIC();
 	sys_reboot(0);
 
@@ -1233,6 +1240,9 @@ static void hawkbit_work_fn(struct k_work *work)
 	}
 	if (hbc->failures == HAWKBIT_MAX_SERVER_FAIL) {
 		LOG_ERR("Too many unsuccessful poll attempts, rebooting!");
+#ifdef CONFIG_NET_L2_BT
+		bt_network_disable();
+#endif
 		LOG_PANIC();
 		sys_reboot(0);
 	}

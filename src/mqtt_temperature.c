@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2017 Linaro Limited
  * Copyright (c) 2017 Open Source Foundries Limited
+ * Copyright (c) 2018 Foundries.io
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -38,6 +39,9 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include "product_id.h"
 #include "app_work_queue.h"
 #include "mqtt_temperature.h"
+#ifdef CONFIG_NET_L2_BT
+#include "bluetooth.h"
+#endif
 
 #define MAX_FAILURES		5
 #define NUM_TEST_RESULTS	5
@@ -153,6 +157,9 @@ static void temp_mqtt_reboot_check(struct temp_mqtt_data *data, int result)
 	if (result) {
 		if (++data->failures >= MAX_FAILURES) {
 			LOG_ERR("Too many MQTT errors, rebooting!");
+#ifdef CONFIG_NET_L2_BT
+			bt_network_disable();
+#endif
 			LOG_PANIC();
 			sys_reboot(0);
 		}

@@ -9,6 +9,6 @@
 #ifndef FOTA_BLUETOOTH_H__
 #define FOTA_BLUETOOTH_H__
 
-int bt_storage_init(void);
+int bt_network_disable(void);
 
 #endif /* FOTA_BLUETOOTH_H__ */
