@@ -19,7 +19,6 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include <init.h>
 
 /* Local helpers and functions */
-#include "tstamp_log.h"
 #include "app_work_queue.h"
 #include "blink_led.h"
 #include "product_id.h"
@@ -28,7 +27,6 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 void main(void)
 {
-	tstamp_hook_install();
 	app_wq_init();
 
 	LOG_INF("Open Source Foundries MQTT + hawkbit FOTA application");
