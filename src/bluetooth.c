@@ -23,6 +23,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include "bluetooth.h"
 
 #include <init.h>
+#include <logging/log_ctrl.h>
 #include <misc/reboot.h>
 #include <tc_util.h>
 #include <board.h>
@@ -84,6 +85,7 @@ static void disconnected(struct bt_conn *conn, u8_t reason)
 {
 	LOG_ERR("BT LE Disconnected (reason %u), rebooting!", reason);
 	set_bluetooth_led(0);
+	LOG_PANIC();
 	sys_reboot(0);
 }
 

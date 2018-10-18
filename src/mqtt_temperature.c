@@ -23,6 +23,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include <device.h>
 #include <json.h>
+#include <logging/log_ctrl.h>
 #include <misc/reboot.h>
 #include <net/net_app.h>
 #include <net/net_event.h>
@@ -152,6 +153,7 @@ static void temp_mqtt_reboot_check(struct temp_mqtt_data *data, int result)
 	if (result) {
 		if (++data->failures >= MAX_FAILURES) {
 			LOG_ERR("Too many MQTT errors, rebooting!");
+			LOG_PANIC();
 			sys_reboot(0);
 		}
 	} else {

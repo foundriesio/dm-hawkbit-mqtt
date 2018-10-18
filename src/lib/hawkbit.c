@@ -22,6 +22,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include <zephyr.h>
 #include <dfu/mcuboot.h>
 #include <dfu/flash_img.h>
+#include <logging/log_ctrl.h>
 #include <misc/reboot.h>
 #include <net/http.h>
 #include <net/net_app.h>
@@ -1204,6 +1205,7 @@ static int hawkbit_ddi_poll(struct hawkbit_context *hbc)
 		json_acid);
 
 	/* Reboot and let the bootloader take care of the swap process */
+	LOG_PANIC();
 	sys_reboot(0);
 
 	return 0;
@@ -1231,6 +1233,7 @@ static void hawkbit_work_fn(struct k_work *work)
 	}
 	if (hbc->failures == HAWKBIT_MAX_SERVER_FAIL) {
 		LOG_ERR("Too many unsuccessful poll attempts, rebooting!");
+		LOG_PANIC();
 		sys_reboot(0);
 	}
 
