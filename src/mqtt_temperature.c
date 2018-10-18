@@ -131,7 +131,7 @@ static struct net_mgmt_event_callback net_mgmt_cb;
 
 #if defined(CONFIG_NET_CONTEXT_NET_PKT_POOL)
 NET_PKT_TX_SLAB_DEFINE(mqtt_client_tx, 5);
-NET_PKT_DATA_POOL_DEFINE(mqtt_client_data, 10);
+NET_PKT_DATA_POOL_DEFINE(mqtt_client_data, 15);
 
 static struct k_mem_slab *tx_slab(void)
 {
