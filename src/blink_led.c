@@ -7,7 +7,6 @@
 
 #include "blink_led.h"
 
-#include <board.h>
 #include <device.h>
 #include <gpio.h>
 

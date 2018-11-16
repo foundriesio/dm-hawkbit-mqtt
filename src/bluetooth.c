@@ -29,7 +29,6 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include <net/net_if.h>
 #include <net/net_mgmt.h>
 #include <tc_util.h>
-#include <board.h>
 #include <gpio.h>
 #include <soc.h>
 
