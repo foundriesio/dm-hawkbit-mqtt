@@ -502,9 +502,9 @@ static int hawkbit_init_flash(void)
 	/*
 	 * Initialize the DFU context.
 	 */
-	flash_dev = device_get_binding(FLASH_DEV_NAME);
+	flash_dev = device_get_binding(DT_FLASH_DEV_NAME);
 	if (!flash_dev) {
-		LOG_ERR("missing flash device %s", FLASH_DEV_NAME);
+		LOG_ERR("missing flash device %s", DT_FLASH_DEV_NAME);
 		return -ENODEV;
 	}
 
