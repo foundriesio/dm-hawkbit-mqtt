@@ -106,6 +106,9 @@ struct hawkbit_context {
 	struct k_work_q *work_q;
 	struct k_delayed_work work;
 	struct k_sem *sem;
+#if defined(CONFIG_FOTA_ERASE_PROGRESSIVELY)
+	int last_offset;
+#endif
 };
 
 struct hawkbit_device_acid {
@@ -584,6 +587,26 @@ static void install_update_cb(struct http_ctx *ctx,
 		body_len = data_len;
 	}
 
+#if defined(CONFIG_FOTA_ERASE_PROGRESSIVELY)
+	/* Erase the sector that's going to be written to next */
+	while (hbc->last_offset <
+	       FLASH_AREA_IMAGE_1_OFFSET + dfu_ctx.bytes_written +
+	       FLASH_ERASE_BLOCK_SIZE) {
+		LOG_INF("Erasing sector at offset 0x%x", hbc->last_offset);
+		flash_write_protection_set(flash_dev, false);
+		ret = flash_erase(flash_dev, hbc->last_offset,
+				  FLASH_ERASE_BLOCK_SIZE);
+		flash_write_protection_set(flash_dev, true);
+
+		if (ret) {
+			LOG_ERR("Error %d while erasing sector", ret);
+			goto error;
+		}
+
+		hbc->last_offset += FLASH_ERASE_BLOCK_SIZE;
+	}
+#endif
+
 	/* everything looks good: flash */
 	ret = flash_img_buffered_write(&dfu_ctx,
 				       body_data, body_len,
@@ -625,6 +648,14 @@ static int hawkbit_install_update(struct hawkbit_context *hbc,
 		return -EINVAL;
 	}
 
+#if defined(CONFIG_FOTA_ERASE_PROGRESSIVELY)
+	/* instead of erasing slot 1, reset image data */
+	ret = boot_request_erase();
+	if (ret != 0) {
+		LOG_ERR("Flash image 1 reset: error %d", ret);
+		return -EIO;
+	}
+#else
 	flash_write_protection_set(flash_dev, false);
 	ret = flash_erase(flash_dev, FLASH_AREA_IMAGE_1_OFFSET,
 			  FLASH_BANK_SIZE);
@@ -634,6 +665,7 @@ static int hawkbit_install_update(struct hawkbit_context *hbc,
 			FLASH_AREA_IMAGE_1_OFFSET, FLASH_BANK_SIZE);
 		return -EIO;
 	}
+#endif
 
 	LOG_INF("Starting the download and flash process");
 
@@ -1279,6 +1311,9 @@ int hawkbit_start(struct k_work_q *work_q)
 	hb_context.work_q = work_q;
 	k_delayed_work_init(&hb_context.work, hawkbit_work_fn);
 	hb_context.sem = &hb_sem;
+#if defined(CONFIG_FOTA_ERASE_PROGRESSIVELY)
+	hb_context.last_offset = FLASH_AREA_IMAGE_1_OFFSET;
+#endif
 
 #if defined(CONFIG_NET_MGMT_EVENT)
 	/* Subscribe to NET_EVENT_IF_UP if interface is not ready */
