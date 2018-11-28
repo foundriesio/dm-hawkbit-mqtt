@@ -30,7 +30,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include <net/net_event.h>
 #include <net/net_if.h>
 #include <net/net_mgmt.h>
-#include <net/mqtt.h>
+#include <net/mqtt_legacy.h>
 #include <sensor.h>
 #include <tc_util.h>
 #include <toolchain.h>
