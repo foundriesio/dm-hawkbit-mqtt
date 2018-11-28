@@ -44,11 +44,19 @@ config FOTA_DEVICE_SOC_SERIES_NRF52X
 
 if FOTA_DEVICE_SOC_SERIES_NRF52X
 
-config BT_DEVICE_NAME
-	default "ZMP IPSP node"
-
 config TEMP_NRF5_NAME
 	default "fota-die-temp"
+
+if !CONFIG_NET_L2_OPENTHREAD && !CONFIG_NET_L2_IEEE802154
+
+config BT
+	default y
+
+config BT_CTLR
+	default y
+
+config BT_DEVICE_NAME
+	default "ZMP IPSP node"
 
 config NET_CONFIG_PEER_IPV6_ADDR
 	default "fe80::d4e7:0:0:1"
@@ -99,6 +107,7 @@ config BT_CTLR_CONN_PARAM_REQ
 config BT_CTLR_ADV_EXT
 	default n
 
+endif # !CONFIG_NET_L2_OPENTHREAD && !CONFIG_NET_L2_IEEE802154
 endif # FOTA_DEVICE_SOC_SERIES_NRF52X
 
 # TODO: get these from a credential partition instead.
