@@ -113,6 +113,9 @@ config NET_IF_UNICAST_IPV6_ADDR_COUNT
 config NET_IF_MCAST_IPV6_ADDR_COUNT
 	default 2 if BT
 
+config NET_RX_STACK_SIZE
+	default 2048
+
 config FOTA_ERASE_PROGRESSIVELY
 	bool "Erase flash progressively when updating/receiving new firmware"
 	default y if SOC_NRF52840
